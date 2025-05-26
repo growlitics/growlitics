@@ -3,6 +3,17 @@ from datetime import date, datetime, time
 
 st.set_page_config(page_title="Growlytics", layout="wide")
 
+# --- Wizard State ---
+if "step" not in st.session_state:
+    st.session_state.step = 0
+
+def next_step():
+    st.session_state.step += 1
+
+def prev_step():
+    st.session_state.step -= 1
+
+# --- Style ---
 st.markdown("""
     <style>
         html, body, [data-testid="stApp"] {
@@ -11,10 +22,6 @@ st.markdown("""
         }
         .main .block-container {
             padding-right: 0 !important;
-        }
-        .full-height-image {
-            height: 100vh;
-            object-fit: cover;
         }
         div.stButton > button:first-child {
             background-color: #34a853;
@@ -27,20 +34,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Layout: Left = Content (logo, name, form), Right = Image ---
+# --- Layout: Left = Wizard, Right = Image ---
 left_col, right_col = st.columns([2, 1], gap="medium")
 
-def calculate_light_intensity(
-    cultivar, plant_date, simulation_date, long_days, long_day_start, long_day_end,
-    cultivation_length, short_day_start, short_day_end, plant_density,
-    lighting_type, lighting_intensity, expected_price, target_weight, bonus, penalty
-):
-    umol = 125.0 + long_days
-    percent = min((umol / lighting_intensity) * 100, 100) if lighting_intensity > 0 else 0
-    return umol, percent
-
 with left_col:
-    # Header section
     col1, col2 = st.columns([1, 5])
     with col1:
         st.image("logo.png", width=100)
@@ -50,116 +47,75 @@ with left_col:
 
     st.markdown("---")
 
-    # Inputs
-    st.subheader("🌿 Input Parameters")
+    step = st.session_state.step
 
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Transmission")
-    with col2:
-        transmission = st.number_input("transmission", min_value=40, max_value=100, value=75, label_visibility="collapsed")
+    if step == 0:
+        st.subheader("🏡 Step 1: Greenhouse Settings")
+        transmission = st.number_input("Transmission (%)", 40, 100, 75)
+        lighting_type = st.selectbox("Lighting Type", ["LED", "SON-T", "Hybrid"])
+        lighting_intensity = st.number_input("Lighting Intensity (µmol/m²/s)", 0, 2000, 200)
+        st.button("Next ➡", on_click=next_step)
 
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Cultivar")
-    with col2:
-        cultivar = st.selectbox("cultivar", ["Baltica", "Zembla", "Delianne", "Other"], label_visibility="collapsed")
+    elif step == 1:
+        st.subheader("🌱 Step 2a: Crop Info")
+        cultivar = st.selectbox("Cultivar", ["Baltica", "Zembla", "Delianne", "Other"])
+        plant_date = st.date_input("Plant Date", date.today())
+        cultivation_length = st.number_input("Cultivation Length (days)", 1, 120, 56)
+        col_prev, col_next = st.columns([1, 1])
+        with col_prev:
+            st.button("⬅ Back", on_click=prev_step)
+        with col_next:
+            st.button("Next ➡", on_click=next_step)
 
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Plant Date")
-    with col2:
-        plant_date = st.date_input("plant_date", date.today(), label_visibility="collapsed")
+    elif step == 2:
+        st.subheader("🌞 Step 2b: Long Day Settings")
+        long_days = st.number_input("Long Days (days)", 0, 16, 11)
+        long_day_start = st.number_input("Long Day Start (hour)", 0, 23, 6)
+        long_day_end = st.number_input("Long Day End (hour)", 0, 23, 22)
+        col_prev, col_next = st.columns([1, 1])
+        with col_prev:
+            st.button("⬅ Back", on_click=prev_step)
+        with col_next:
+            st.button("Next ➡", on_click=next_step)
 
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Simulation Date")
-    with col2:
-        sim_date = st.date_input("simulation_date", date.today(), label_visibility="collapsed")
-    
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Simulation Time")
-    with col2:
-        sim_time = st.time_input("simulation_time", value=time(8, 0), label_visibility="collapsed")
-    
-    simulation_datetime = datetime.combine(sim_date, sim_time)
+    elif step == 3:
+        st.subheader("🌑 Step 2c: Short Day Settings")
+        short_day_start = st.number_input("Short Day Start (hour)", 0, 23, 7)
+        short_day_end = st.number_input("Short Day End (hour)", 0, 23, 19)
+        plant_density = st.number_input("Plant Density (#/m²)", 10, 100, 50)
+        col_prev, col_next = st.columns([1, 1])
+        with col_prev:
+            st.button("⬅ Back", on_click=prev_step)
+        with col_next:
+            st.button("Next ➡", on_click=next_step)
+            
+    elif step == 4:
+        st.subheader("🕒 Step 3: Simulation Timing")
+        sim_date = st.date_input("Simulation Date", date.today())
+        sim_time = st.time_input("Simulation Time", value=time(8, 0))
+        simulation_datetime = datetime.combine(sim_date, sim_time)
+        col_prev, col_next = st.columns([1, 1])
+        with col_prev:
+            st.button("⬅ Back", on_click=prev_step)
+        with col_next:
+            st.button("Next ➡", on_click=next_step)
 
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Long Days (days)")
-    with col2:
-        long_days = st.number_input("long_days", min_value=0, max_value=16, value=11, label_visibility="collapsed")
+    elif step == 5:
+        st.subheader("💰 Step 4: Economic Targets")
+        expected_price = st.number_input("Crop Price (€ / plant)", 0.0, 10.0, 0.50, 0.01)
+        target_weight = st.number_input("Target Weight (g)", 0, 500, 70)
+        bonus = st.number_input("Bonus (€ / g)", 0.0, 1.0, 0.02, 0.001)
+        penalty = st.number_input("Penalty (€ / g)", -10.0, 0.0, -0.04, 0.001)
 
-    # Long Day Lighting Start and End
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Long Day Start (hour)")
-    with col2:
-        long_day_start = st.number_input("long_day_start", min_value=0, max_value=23, value=6, label_visibility="collapsed")
-
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Long Day End (hour)")
-    with col2:
-        long_day_end = st.number_input("long_day_end", min_value=0, max_value=23, value=22, label_visibility="collapsed")
-
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Cultivation Length (days)")
-    with col2:
-        cultivation_length = st.number_input("length", min_value=1, value=56, label_visibility="collapsed")
-
-    # Short Day Lighting Start and End
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Short Day Start (hour)")
-    with col2:
-        short_day_start = st.number_input("short_day_start", min_value=0, max_value=23, value=7, label_visibility="collapsed")
-
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Short Day End (hour)")
-    with col2:
-        short_day_end = st.number_input("short_day_end", min_value=0, max_value=23, value=19, label_visibility="collapsed")
-
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Plant Density (#/m2)")
-    with col2:
-        plant_density = st.number_input("plant_density", min_value=45, value=50, label_visibility="collapsed")
-
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Lighting Type")
-    with col2:
-        lighting_type = st.selectbox("lighting", ["LED", "SON-T", "Hybrid"], label_visibility="collapsed")
-
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Lighting Setup (µmol/m²/s)")
-    with col2:
-        lighting_intensity = st.number_input("intensity", min_value=0, value=200, label_visibility="collapsed")
-
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Crop Price (€ / plant)")
-    with col2:
-        expected_price = st.number_input("price", min_value=0.0, value=0.50, step=0.01, label_visibility="collapsed")
-
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Target Weight (g)")
-    with col2:
-        target_weight = st.number_input("target", min_value=0, value=70, label_visibility="collapsed")
-
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Bonus (€ / g)")
-    with col2:
-        bonus = st.number_input("bonus", min_value=0.0, max_value=1.0, value=0.02, step=0.001, label_visibility="collapsed")
-
-    col1, col2 = st.columns([1, 2])
-    with col1: st.write("Penalty (€ / g)")
-    with col2:
-        penalty = st.number_input("penalty", min_value=-10.0, max_value=0.0, value=-0.04, step=0.001, label_visibility="collapsed")
-
-    # --- Calculate Button and Output Placeholder ---
-    st.markdown("### 💡 Lighting Calculation")
-    if st.button("Calculate Light Intensity"):
-        umol, percent = calculate_light_intensity(
-            cultivar, plant_date, simulation_datetime, long_days, long_day_start, long_day_end,
-            cultivation_length, short_day_start, short_day_end, plant_density,
-            lighting_type, lighting_intensity, expected_price, target_weight, bonus, penalty
-        )
-
-        st.success("✅ Calculation Complete")
-        col_a, col_b = st.columns(2)
-        col_a.metric("Light Intensity", f"{umol} µmol/m²/s")
-        col_b.metric("Relative Intensity", f"{percent:.1f}%")
+        if st.button("⬅ Back", on_click=prev_step):
+            pass
+        if st.button("Calculate Light Intensity"):
+            umol = 125.0 + long_days
+            percent = min((umol / lighting_intensity) * 100, 100) if lighting_intensity > 0 else 0
+            st.success("✅ Calculation Complete")
+            col_a, col_b = st.columns(2)
+            col_a.metric("Light Intensity", f"{umol} µmol/m²/s")
+            col_b.metric("Relative Intensity", f"{percent:.1f}%")
 
 with right_col:
     st.image("GH_image.png", use_container_width=True, output_format="auto")
