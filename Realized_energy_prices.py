@@ -13,8 +13,7 @@ import os
 
 # === CONFIGURATION ===
 ENTSOE_TOKEN = "3595660d-f1c6-4479-b5e1-c763b2a28d13"
-FILEPATH = r"D:\Dimmable_LED\Website"
-FILENAME = os.path.join(FILEPATH, "Realized_energy_prices.xlsx")
+FILENAME = "realized_energy_prices.xlsx"
 BIDDING_ZONE = "10YNL----------L"  # Netherlands
 
 # === FETCH FUNCTION ===
