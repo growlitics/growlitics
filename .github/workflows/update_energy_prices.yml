@@ -33,3 +33,5 @@ jobs:
         git add realized_energy_prices.xlsx
         git commit -m "📈 Auto-update energy prices"
         git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
