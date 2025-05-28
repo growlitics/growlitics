@@ -5,6 +5,9 @@ on:
     - cron: '0 */4 * * *'  # Every 4 hours
   workflow_dispatch:
 
+permissions:
+  contents: write  # ✅ Nodig om push te mogen doen
+
 jobs:
   update-weather:
     runs-on: ubuntu-latest
@@ -25,3 +28,13 @@ jobs:
 
       - name: Run forecast updater
         run: python update_weather.py
+
+      - name: Commit and push forecast update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Update weather forecast [auto]" || echo "Nothing to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
