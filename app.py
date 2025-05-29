@@ -3,8 +3,8 @@ from datetime import date, datetime, time, timedelta
 import pandas as pd
 import os
 import pathlib
-BASE_DIR = pathlib.Path(__file__).parent.resolve()
-SAVE_DIR = pathlib.Path(__file__).parent / "saved_strategies"
+import tempfile
+SAVE_DIR = pathlib.Path("saved_strategies")
 SAVE_DIR.mkdir(exist_ok=True)
 
 st.set_page_config(page_title="Growlitics", layout="wide")
