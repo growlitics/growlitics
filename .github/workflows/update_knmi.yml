@@ -24,4 +24,4 @@ jobs:
           pip install pandas requests openpyxl
 
       - name: Run update script
-        run: python path/to/your_script.py
+        run: python update_knmi.py
