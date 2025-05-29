@@ -28,50 +28,50 @@ def dimming_column():
     )
 
 def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy file"):
-    import base64
-    import json
-
     GH_TOKEN = st.secrets["GH_TOKEN"]
     REPO = "growlitics/growlitics"
     BRANCH = "main"
     PATH = f"saved_strategies/{filename}"
 
-    # Step 1: Check if file exists
-    get_url = f"https://api.github.com/repos/{REPO}/contents/{PATH}"
     headers = {
         "Authorization": f"token {GH_TOKEN}",
-        "Accept": "application/vnd.github+json"
+        "Accept": "application/vnd.github.v3+json"
     }
+    st.write("📡 Sending request to GitHub API...")
+
+    # Check if file exists to get SHA
+    get_url = f"https://api.github.com/repos/{REPO}/contents/{PATH}"
     resp = requests.get(get_url, headers=headers, params={"ref": BRANCH})
     sha = resp.json().get("sha") if resp.status_code == 200 else None
 
-    # Step 2: Upload or update
+    # Prepare content
     put_data = {
         "message": commit_msg,
         "branch": BRANCH,
-        "content": base64.b64encode(content).decode(),
+        "content": base64.b64encode(content).decode("utf-8"),
     }
     if sha:
-        put_data["sha"] = sha
+        put_data["sha"] = sha  # Include for updates
 
     put_resp = requests.put(get_url, headers=headers, json=put_data)
-
-    # 🔍 DEBUG
-    st.write("🔧 GitHub API response:")
-    st.code(json.dumps(put_resp.json(), indent=2))
 
     if put_resp.status_code in [200, 201]:
         st.success("✅ Strategy committed to GitHub.")
     else:
-        st.error(f"❌ GitHub commit failed: {put_resp.status_code}")
+        st.error(f"❌ GitHub commit failed:\n{put_resp.status_code}: {put_resp.json()}")
+
 
 # --- Save User Settings Function ---
 def save_user_settings():
     with st.form("save_strategy_form", clear_on_submit=False):
         strategy_name = st.text_input("💾 Name this strategy before saving:", key="save_strategy_name")
+        if not strategy_name:
+            st.warning("⚠️ Please enter a strategy name before saving.")
+            return
         submit = st.form_submit_button("📁 Save Strategy Settings to Excel")
 
         if submit:
+            st.write("✅ Form submitted")
             strategy_name = strategy_name.strip()
             if not strategy_name:
                 st.warning("⚠️ Please enter a strategy name before saving.")
@@ -109,6 +109,8 @@ def save_user_settings():
 
             try:
                 with open(filename, "rb") as f:
+                    st.write("📤 Attempting GitHub upload...")
+
                     commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
             except Exception as e:
                 st.error(f"❌ Commit to GitHub failed: {e}")
