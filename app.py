@@ -603,7 +603,7 @@ with left_col:
         st.subheader("💰 Step 5: Economics")
         st.session_state.target_weight = st.number_input(
             "Target Weight (g)", 0, 500,
-            value=int(st.session_state.get("target_weight", 70)), key="selected_target_weight"
+            value=int(st.session_state.get("target_weight", int(float(70))), key="selected_target_weight"
         )
         st.session_state.taxes = st.number_input(
             "Grid energy tax/delivery surcharge (€/kWh)", 0.00, 0.10,
