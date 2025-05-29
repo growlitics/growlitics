@@ -91,7 +91,7 @@ def save_user_settings_sidebar():
                     "sim_date": str(st.session_state.get("sim_date")),
                     "sim_time": str(st.session_state.get("sim_time")),
                 }
-                filename = SAVE_DIR / f"user_settings_{strategy_name.strip()}.xlsx"
+                filename = SAVE_DIR / f"{strategy_name.strip()}.xlsx"
                 pd.DataFrame([user_settings]).to_excel(filename, index=False)
 
                 try:
