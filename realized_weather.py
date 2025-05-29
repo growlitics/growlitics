@@ -6,7 +6,7 @@ from io import StringIO, BytesIO
 import zipfile
 
 # === CONFIG ===
-EXCEL_PATH = r"D:/Dimmable_LED/Data_gathering/realized_weather.xlsx"
+EXCEL_PATH = "realized_weather.xlsx"
 STATION = '330'
 
 # === LOAD EXISTING FILE OR START NEW ===
