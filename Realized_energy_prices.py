@@ -116,7 +116,7 @@ def main():
             existing["Timestamp"] = pd.to_datetime(
                 existing["Timestamp"].astype(str).str.extract(r"^(.+?)\s+-")[0],
                 dayfirst=True,
-                errors="coerce"  # makes sure invalid formats don't break the code
+                errors="coerce"
             )
         else:
             raise ValueError("Expected 'Timestamp' column.")
@@ -124,17 +124,21 @@ def main():
         existing = pd.DataFrame(columns=["Timestamp", "Day-ahead (EUR/MWh)"])
 
     # Determine where to resume
-    if not existing.empty:
-        last_date = existing["Timestamp"].max().date()
-        rows_on_last_day = existing["Timestamp"].dt.date.eq(last_date).sum()
-        if rows_on_last_day >= 24:
-            start_date = last_date + timedelta(days=1)
+    if not existing.empty and existing["Timestamp"].notna().any():
+        last_ts = existing["Timestamp"].max()
+        if pd.isna(last_ts):
+            start_date = datetime.today().date() - timedelta(days=30)
         else:
-            start_date = last_date  # try again from incomplete day
+            last_date = last_ts.date()
+            rows_on_last_day = existing["Timestamp"].dt.date.eq(last_date).sum()
+            if rows_on_last_day >= 24:
+                start_date = last_date + timedelta(days=1)
+            else:
+                start_date = last_date  # try again from incomplete day
     else:
         start_date = datetime.today().date() - timedelta(days=30)
 
-    # Determine end date
+    start_date = pd.to_datetime(start_date).date()
     today = datetime.today().date()
     end_date = today + timedelta(days=1) if datetime.now().hour >= 13 else today
 
