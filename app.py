@@ -4,6 +4,9 @@ import pandas as pd
 import os
 import pathlib
 import tempfile
+import subprocess
+import requests
+
 SAVE_DIR = pathlib.Path("saved_strategies")
 SAVE_DIR.mkdir(exist_ok=True)
 
@@ -22,6 +25,34 @@ def dimming_column():
         "% dimmen",
         validate=r"^([0-9]|[1-9][0-9]|100)%?$"
     )
+
+def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy file"):
+    import base64
+    GH_TOKEN = st.secrets["GH_TOKEN"]
+    REPO = "growlitics/growlitics"
+    BRANCH = "main"
+    PATH = f"saved_strategies/{filename}"
+
+    # Step 1: Check if file exists to get the SHA (needed for updates)
+    get_url = f"https://api.github.com/repos/{REPO}/contents/{PATH}"
+    headers = {"Authorization": f"token {GH_TOKEN}"}
+    resp = requests.get(get_url, headers=headers, params={"ref": BRANCH})
+    sha = resp.json().get("sha") if resp.status_code == 200 else None
+
+    # Step 2: Upload the file
+    put_data = {
+        "message": commit_msg,
+        "branch": BRANCH,
+        "content": base64.b64encode(content).decode(),
+    }
+    if sha:
+        put_data["sha"] = sha
+
+    put_resp = requests.put(get_url, headers=headers, json=put_data)
+    if put_resp.status_code in [200, 201]:
+        st.success("✅ Strategy committed to GitHub.")
+    else:
+        st.error(f"❌ GitHub commit failed: {put_resp.json()}")
 
 # --- Save User Settings Function ---
 def save_user_settings():
@@ -63,9 +94,12 @@ def save_user_settings():
             }
 
             filename = SAVE_DIR / f"user_settings_{strategy_name}.xlsx"
-            pd.DataFrame([user_settings]).to_excel(filename, index=False)
+            df = pd.DataFrame([user_settings])
+            df.to_excel(filename, index=False)
             
-            git_commit_push(filename)
+            # Commit it to GitHub
+            with open(filename, "rb") as f:
+                commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
 
             st.success(f"✅ Settings saved to: `{filename}`")
             st.experimental_rerun()
