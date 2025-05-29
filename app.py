@@ -37,7 +37,6 @@ def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy fil
         "Authorization": f"token {GH_TOKEN}",
         "Accept": "application/vnd.github.v3+json"
     }
-    st.write("📡 Sending request to GitHub API...")
 
     # Check if file exists to get SHA
     get_url = f"https://api.github.com/repos/{REPO}/contents/{PATH}"
@@ -54,11 +53,6 @@ def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy fil
         put_data["sha"] = sha  # Include for updates
 
     put_resp = requests.put(get_url, headers=headers, json=put_data)
-
-    if put_resp.status_code in [200, 201]:
-        st.success("✅ Strategy committed to GitHub.")
-    else:
-        st.error(f"❌ GitHub commit failed:\n{put_resp.status_code}: {put_resp.json()}")
                 
 def save_user_settings_sidebar():
     with st.sidebar:
@@ -102,9 +96,7 @@ def save_user_settings_sidebar():
 
                 try:
                     with open(filename, "rb") as f:
-                        st.write("📤 Attempting GitHub upload...")
                         commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
-                        st.success("✅ Commit function finished, see above for details.")
                 except Exception as e:
                     st.error(f"❌ Commit to GitHub failed: {e}")
             
