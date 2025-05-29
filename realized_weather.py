@@ -92,9 +92,9 @@ else:
 df_new = df_new[df_new["datetime"] > latest_dt]
 if df_new.empty:
     print("⚠️ Geen nieuwe records gevonden.")
+    df_combined = df_existing.copy()
 else:
     print(f"✅ {len(df_new)} nieuwe rijen gevonden")
-
     df_combined = pd.concat([df_existing, df_new], ignore_index=True)
     df_combined = df_combined.drop_duplicates(subset="datetime").sort_values("datetime")
 
