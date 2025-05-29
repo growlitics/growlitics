@@ -6,6 +6,7 @@ import pathlib
 import tempfile
 import subprocess
 import requests
+import base64
 
 SAVE_DIR = pathlib.Path("saved_strategies")
 SAVE_DIR.mkdir(exist_ok=True)
@@ -27,39 +28,37 @@ def dimming_column():
     )
 
 def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy file"):
-    import base64
     GH_TOKEN = st.secrets["GH_TOKEN"]
-    if not GH_TOKEN or GH_TOKEN.startswith("ghp_") == False:
-        st.error("❌ GH_TOKEN is missing or malformed.")
-        return
     REPO = "growlitics/growlitics"
     BRANCH = "main"
     PATH = f"saved_strategies/{filename}"
 
-    # Step 1: Check if file exists to get the SHA (needed for updates)
+    headers = {
+        "Authorization": f"token {GH_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    # Check if file exists to get SHA
     get_url = f"https://api.github.com/repos/{REPO}/contents/{PATH}"
-    headers = {"Authorization": f"token {GH_TOKEN}"}
     resp = requests.get(get_url, headers=headers, params={"ref": BRANCH})
     sha = resp.json().get("sha") if resp.status_code == 200 else None
 
-    # Step 2: Upload the file
+    # Prepare content
     put_data = {
         "message": commit_msg,
         "branch": BRANCH,
-        "content": base64.b64encode(content).decode(),
+        "content": base64.b64encode(content).decode("utf-8"),
     }
     if sha:
-        put_data["sha"] = sha
+        put_data["sha"] = sha  # Include for updates
 
     put_resp = requests.put(get_url, headers=headers, json=put_data)
+
     if put_resp.status_code in [200, 201]:
         st.success("✅ Strategy committed to GitHub.")
     else:
-        st.error(f"❌ GitHub commit failed: {put_resp.json()}")
-        
-    st.write("Request URL:", get_url)
-    st.write("Status code:", put_resp.status_code)
-    st.write("Response:", put_resp.json())
+        st.error(f"❌ GitHub commit failed:\n{put_resp.status_code}: {put_resp.json()}")
+
 
 # --- Save User Settings Function ---
 def save_user_settings():
@@ -103,23 +102,35 @@ def save_user_settings():
             filename = SAVE_DIR / f"user_settings_{strategy_name}.xlsx"
             pd.DataFrame([user_settings]).to_excel(filename, index=False)
 
-            git_commit_push(filename, commit_msg=f"🔁 Auto-commit: {strategy_name}")
+            try:
+                with open(filename, "rb") as f:
+                    commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
+            except Exception as e:
+                st.error(f"❌ Commit to GitHub failed: {e}")
 
             st.success(f"✅ Settings saved to: `{filename}`")
             st.experimental_rerun()
             
 # --- Load User Settings ---
 def load_user_settings():
-    files = list(SAVE_DIR.glob("*.xlsx"))
+    GH_TOKEN = st.secrets["GH_TOKEN"]
+    headers = {"Authorization": f"token {GH_TOKEN}"}
+    api_url = "https://api.github.com/repos/growlitics/growlitics/contents/saved_strategies"
+
+    resp = requests.get(api_url, headers=headers)
+    files = [f["name"] for f in resp.json() if f["name"].endswith(".xlsx")]
+
     if files:
-        selected_file = st.selectbox("📂 Load existing strategy", [f.name for f in files])
+        selected_file = st.selectbox("📂 Load existing strategy", files)
         if st.button("📤 Load Strategy"):
-            df = pd.read_excel(SAVE_DIR / selected_file)
+            raw_url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{selected_file}"
+            df = pd.read_excel(raw_url)
             for col in df.columns:
                 st.session_state[col] = df[col].iloc[0]
             st.success(f"✅ Loaded settings from `{selected_file}`")
     else:
-        st.info("No saved strategies found in ./saved_strategies")
+        st.info("No saved strategies found in GitHub.")
+
 
 # --- Wizard State ---
 if "step" not in st.session_state:
