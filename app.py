@@ -63,16 +63,17 @@ def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy fil
 
 # --- Save User Settings Function ---
 def save_user_settings():
+    debug_placeholder = st.empty()  # For debug output
+
     with st.form("save_strategy_form", clear_on_submit=False):
         strategy_name = st.text_input("💾 Name this strategy before saving:", key="save_strategy_name")
         submit = st.form_submit_button("📁 Save Strategy Settings to GitHub")
 
         if submit:
+            debug_placeholder.info("Step 1: Form submitted")
             if not strategy_name.strip():
-                st.warning("⚠️ Please enter a strategy name before saving.")
+                debug_placeholder.warning("⚠️ Please enter a strategy name before saving.")
                 return
-
-            st.write("✅ Form submitted")
 
             user_settings = {
                 "crop": st.session_state.get("crop"),
@@ -104,15 +105,16 @@ def save_user_settings():
             filename = SAVE_DIR / f"user_settings_{strategy_name.strip()}.xlsx"
             pd.DataFrame([user_settings]).to_excel(filename, index=False)
 
+            # Try/except to catch all errors
             try:
-                with open(filename, "rb") as f:
-                    st.write("📤 Attempting GitHub upload...")
-                    commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
-            except Exception as e:
-                st.error(f"❌ Commit to GitHub failed: {e}")
+                debug_placeholder.info(f"Step 2: File saved locally: {filename}")
 
-            st.success(f"✅ Settings saved to: `{filename}`")
-            st.experimental_rerun()
+                with open(filename, "rb") as f:
+                    debug_placeholder.info("Step 3: Attempting GitHub upload...")
+                    commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
+                    debug_placeholder.success("✅ Commit function finished, see above for details.")
+            except Exception as e:
+                debug_placeholder.error(f"❌ Exception: {e}")
             
 # --- Load User Settings ---
 def load_user_settings():
