@@ -113,13 +113,14 @@ def load_user_settings():
         selected_file = st.selectbox("📂 Load existing strategy", files)
         if st.button("📤 Load Strategy"):
             raw_url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{selected_file}"
-            df = pd.read_excel(raw_url)
+            import io
+            resp = requests.get(raw_url)
+            df = pd.read_excel(io.BytesIO(resp.content))  # <-- FIXED
             for col in df.columns:
                 st.session_state[col] = df[col].iloc[0]
             st.success(f"✅ Loaded settings from `{selected_file}`")
     else:
         st.info("No saved strategies found in GitHub.")
-
 
 # --- Wizard State ---
 if "step" not in st.session_state:
@@ -282,15 +283,32 @@ with left_col:
         if st.session_state.get("use_excel", False):
             st.subheader("📅 Step 1: Select Planning Info from QMS")
             current_year = date.today().year
-            st.session_state.rondejaar = st.selectbox("Rondejaar", list(range(current_year, current_year - 6, -1)))
-            st.session_state.rondenummer = st.number_input("Rondenummer", 1, 100, 1)
-            st.session_state.vak = st.number_input("Vak", 1, 100, 1)
-
+    
+            # --- Widget persistence using session_state ---
+            st.session_state.rondejaar = st.selectbox(
+                "Rondejaar",
+                list(range(current_year, current_year - 6, -1)),
+                index=list(range(current_year, current_year - 6, -1)).index(
+                    st.session_state.get("rondejaar", current_year)
+                ) if st.session_state.get("rondejaar", current_year) in list(range(current_year, current_year - 6, -1)) else 0,
+                key="rondejaar"
+            )
+            st.session_state.rondenummer = st.number_input(
+                "Rondenummer", 1, 100,
+                value=int(st.session_state.get("rondenummer", 1)),
+                key="rondenummer"
+            )
+            st.session_state.vak = st.number_input(
+                "Vak", 1, 100,
+                value=int(st.session_state.get("vak", 1)),
+                key="vak"
+            )
+    
             ronde_key = f"Ronde {st.session_state.rondejaar}-{st.session_state.rondenummer}"
             vak_value = st.session_state.vak
             df = st.session_state.excel_data
             matched = df[(df["Ronde"] == ronde_key) & (df["Vak"] == vak_value)]
-
+    
             if not matched.empty:
                 if len(matched) == 1:
                     st.success("✅ Using loaded planting data")
@@ -299,8 +317,14 @@ with left_col:
                 else:
                     st.warning("⚠️ Multiple matches found. Please select cultivar to continue.")
                     options = matched["Cultivar"].unique().tolist()
-                    selected = st.selectbox("Select Cultivar", options)
-                    filtered = matched[matched["Cultivar"] == selected]
+                    # Widget persistence for Cultivar selection
+                    st.session_state.selected_cultivar = st.selectbox(
+                        "Select Cultivar",
+                        options,
+                        index=options.index(st.session_state.get("selected_cultivar", options[0])) if st.session_state.get("selected_cultivar") in options else 0,
+                        key="selected_cultivar"
+                    )
+                    filtered = matched[matched["Cultivar"] == st.session_state.selected_cultivar]
                     if not filtered.empty:
                         st.success("✅ Selection complete")
                         st.dataframe(filtered)
@@ -308,12 +332,22 @@ with left_col:
             else:
                 st.warning("⚠️ No matching row found in Excel file for given Ronde and Vak.")
 
+
         else:
             st.subheader("🏡 Step 1: Greenhouse Settings")
-            st.session_state.transmission = st.number_input("Transmission (%)", 40, 100, st.session_state.get("transmission", 75))
-            st.session_state.lighting_type = st.selectbox("Lighting Type", ["LED", "SON-T", "Hybrid"], index=["LED", "SON-T", "Hybrid"].index(st.session_state.get("lighting_type", "LED")))
-            st.session_state.lighting_intensity = st.number_input("Lighting Intensity (µmol/m²/s)", 0, 2000, st.session_state.get("lighting_intensity", 200))
-
+            st.session_state.transmission = st.number_input(
+                "Transmission (%)", 40, 100,
+                value=st.session_state.get("transmission", 75), key="transmission"
+            )
+            st.session_state.lighting_type = st.selectbox(
+                "Lighting Type", ["LED", "SON-T", "Hybrid"],
+                index=["LED", "SON-T", "Hybrid"].index(st.session_state.get("lighting_type", "LED")),
+                key="lighting_type"
+            )
+            st.session_state.lighting_intensity = st.number_input(
+                "Lighting Intensity (µmol/m²/s)", 0, 2000,
+                value=st.session_state.get("lighting_intensity", 200), key="lighting_intensity"
+            )
         col_prev, col_next = st.columns(2)
         with col_prev:
             if not st.session_state.get("use_excel", False):
@@ -354,13 +388,13 @@ with left_col:
 
         # --- Inputs (Cultivar removed) ---
         st.session_state.plant_density = st.number_input(
-            "Plant Density (#/m²)",
-            10.0, 100.0,
-            float(default_density),
-            step=0.1,
-            format="%.1f"
+            "Plant Density (#/m²)", 10.0, 100.0,
+            value=float(st.session_state.get("plant_density", default_density)),
+            step=0.1, format="%.1f", key="plant_density"
         )
-        st.session_state.plant_date = st.date_input("Plant Date", default_date)
+        st.session_state.plant_date = st.date_input(
+            "Plant Date", value=st.session_state.get("plant_date", default_date), key="plant_date"
+        )
 
         col_prev, col_next = st.columns(2)
         with col_prev:
@@ -374,18 +408,39 @@ with left_col:
         row = st.session_state.get("selected_row", {})
         default_long_days = int(row.get("Lange Dagen", 11))
 
-        st.session_state.long_days = st.number_input("Long Days", 0, 16, default_long_days)
-        st.session_state.long_day_start = st.number_input("Long Day Start Lighting (hour)", 0, 23, 6)
-        st.session_state.long_day_end = st.number_input("Long Day End Lighting (hour)", 0, 23, 22)
+        st.session_state.long_days = st.number_input(
+            "Long Days", 0, 16,
+            value=int(st.session_state.get("long_days", default_long_days)), key="long_days"
+        )
+        st.session_state.long_day_start = st.number_input(
+            "Long Day Start Lighting (hour)", 0, 23,
+            value=int(st.session_state.get("long_day_start", 6)), key="long_day_start"
+        )
+        st.session_state.long_day_end = st.number_input(
+            "Long Day End Lighting (hour)", 0, 23,
+            value=int(st.session_state.get("long_day_end", 22)), key="long_day_end"
+        )
         
         st.markdown("🌞 Long Day Dark Screen Settings")
-        st.session_state.long_day_dark_screen_rad = st.number_input("Straling (Watt)", 0, 1000, 500)
-        st.session_state.long_day_dark_screen_percentage = st.number_input("percentage dicht (%)", 0, 100, 95)
+        st.session_state.long_day_dark_screen_rad = st.number_input(
+            "Straling (Watt)", 0, 1000,
+            value=int(st.session_state.get("long_day_dark_screen_rad", 500)), key="long_day_dark_screen_rad"
+        )
+        st.session_state.long_day_dark_screen_percentage = st.number_input(
+            "percentage dicht (%)", 0, 100,
+            value=int(st.session_state.get("long_day_dark_screen_percentage", 95)), key="long_day_dark_screen_percentage"
+        )
         
         st.markdown("🌞 Long Day Energy Screen Settings")
-        st.session_state.long_day_energy_screen_rad = st.number_input("Straling (Watt)", 0, 1000, 0)
-        st.session_state.long_day_energy_screen_percentage = st.number_input("percentage dicht (%)", 0, 100, 0)
-        
+        st.session_state.long_day_energy_screen_rad = st.number_input(
+            "Straling (Watt)", 0, 1000,
+            value=int(st.session_state.get("long_day_energy_screen_rad", 0)), key="long_day_energy_screen_rad"
+        )
+        st.session_state.long_day_energy_screen_percentage = st.number_input(
+            "percentage dicht (%)", 0, 100,
+            value=int(st.session_state.get("long_day_energy_screen_percentage", 0)), key="long_day_energy_screen_percentage"
+        )
+
         col_prev, col_next = st.columns(2)
         with col_prev:
             st.button("⬅ Back", on_click=prev_step)
@@ -448,19 +503,45 @@ with left_col:
         row = st.session_state.get("selected_row", {})
         default_short_days = int(row.get("# Netto-reactietijd", 56))
 
-        st.session_state.short_days = st.number_input("# Short days", 1, 120, default_short_days)
-        st.session_state.short_day_start = st.number_input("Short Day Start Lighting (hour)", 0, 23, 7)
-        st.session_state.short_day_end = st.number_input("Short Day End Lighting (hour)", 0, 23, 19)
+        st.session_state.short_days = st.number_input(
+            "# Short days", 1, 120,
+            value=int(st.session_state.get("short_days", default_short_days)), key="short_days"
+        )
+        st.session_state.short_day_start = st.number_input(
+            "Short Day Start Lighting (hour)", 0, 23,
+            value=int(st.session_state.get("short_day_start", 7)), key="short_day_start"
+        )
+        st.session_state.short_day_end = st.number_input(
+            "Short Day End Lighting (hour)", 0, 23,
+            value=int(st.session_state.get("short_day_end", 19)), key="short_day_end"
+        )
         
         st.markdown("🌑 Short Day Dark Screen Settings")
-        st.session_state.short_day_dark_screen_rad = st.number_input("Straling (Watt)", 0, 1000, 700)
-        st.session_state.short_day_dark_screen_percentage = st.number_input("percentage dicht (%)", 0, 100, 70)
-        
+        st.session_state.short_day_dark_screen_rad = st.number_input(
+            "Straling (Watt)", 0, 1000,
+            value=int(st.session_state.get("short_day_dark_screen_rad", 700)), key="short_day_dark_screen_rad"
+        )
+        st.session_state.short_day_dark_screen_percentage = st.number_input(
+            "percentage dicht (%)", 0, 100,
+            value=int(st.session_state.get("short_day_dark_screen_percentage", 70)), key="short_day_dark_screen_percentage"
+        )
         st.markdown("🌑 Short Day Energy Screen Settings")
-        st.session_state.short_day_energy_screen_temp_dif = st.number_input("Temp dif. inside > outside (C)", 0, 15, 8)
-        st.session_state.short_day_energy_screen_percentage = st.number_input("percentage dicht (%)", 0, 100, 100)
-        st.session_state.short_day_energy_screen_rad = st.number_input("Radiation outside (Watt)", 0, 250, 120)
-        st.session_state.short_day_energy_screen_percentage = st.number_input("percentage dicht (%)", 0, 100, 0)
+        st.session_state.short_day_energy_screen_temp_dif = st.number_input(
+            "Temp dif. inside > outside (C)", 0, 15,
+            value=int(st.session_state.get("short_day_energy_screen_temp_dif", 8)), key="short_day_energy_screen_temp_dif"
+        )
+        st.session_state.short_day_energy_screen_percentage = st.number_input(
+            "percentage dicht (%)", 0, 100,
+            value=int(st.session_state.get("short_day_energy_screen_percentage", 100)), key="short_day_energy_screen_percentage"
+        )
+        st.session_state.short_day_energy_screen_rad = st.number_input(
+            "Radiation outside (Watt)", 0, 250,
+            value=int(st.session_state.get("short_day_energy_screen_rad", 120)), key="short_day_energy_screen_rad"
+        )
+        st.session_state.short_day_energy_screen_percentage = st.number_input(
+            "percentage dicht (%)", 0, 100, 
+            value=int(st.session_state.get("percentage dicht (%)", 0)), key="percentage dicht (%)"
+            )
 
         col_prev, col_next = st.columns(2)
         with col_prev:
@@ -520,11 +601,26 @@ with left_col:
 
     elif step == 8:
         st.subheader("💰 Step 5: Economics")
-        target_weight = st.number_input("Target Weight (g)", 0, 500, 70)
-        taxes = st.number_input("Grid energy tax/delivery surcharge (€/kWh)", 0.00, 0.10, 0.05, step=0.01)
-        expected_price = st.number_input("Crop Price (€ / plant)", 0.0, 10.0, 0.50, 0.01)
-        bonus = st.number_input("Bonus (€ / g)", 0.0, 1.0, 0.02, 0.001)
-        penalty = st.number_input("Penalty (€ / g)", min_value=-1.0, max_value=0.0, value=-0.04, step=0.001)
+        st.session_state.target_weight = st.number_input(
+            "Target Weight (g)", 0, 500,
+            value=int(st.session_state.get("target_weight", 70)), key="target_weight"
+        )
+        st.session_state.taxes = st.number_input(
+            "Grid energy tax/delivery surcharge (€/kWh)", 0.00, 0.10,
+            value=float(st.session_state.get("taxes", 0.05)), step=0.01, key="taxes"
+        )
+        st.session_state.expected_price = st.number_input(
+            "Crop Price (€ / plant)", 0.0, 10.0,
+            value=float(st.session_state.get("expected_price", 0.50)), step=0.01, key="expected_price"
+        )
+        st.session_state.bonus = st.number_input(
+            "Bonus (€ / g)", 0.0, 1.0,
+            value=float(st.session_state.get("bonus", 0.02)), step=0.001, key="bonus"
+        )
+        st.session_state.penalty = st.number_input(
+            "Penalty (€ / g)", min_value=-1.0, max_value=0.0,
+            value=float(st.session_state.get("penalty", -0.04)), step=0.001, key="penalty"
+        )
         col_prev, col_next = st.columns(2)
         with col_prev:
             st.button("⬅ Back", on_click=prev_step)
@@ -533,8 +629,12 @@ with left_col:
 
     elif step == 9:
         st.subheader("🕒 Step 6: Simulation Timing")
-        st.session_state.sim_date = st.date_input("Simulation Date", date.today())
-        st.session_state.sim_time = st.time_input("Simulation Time", value=round_time_to_nearest_15(datetime.now()))
+        st.session_state.sim_date = st.date_input(
+            "Simulation Date", value=st.session_state.get("sim_date", date.today()), key="sim_date"
+        )
+        st.session_state.sim_time = st.time_input(
+            "Simulation Time", value=st.session_state.get("sim_time", round_time_to_nearest_15(datetime.now())), key="sim_time"
+        )
         simulation_datetime = datetime.combine(st.session_state.sim_date, st.session_state.sim_time)
         col_prev, col_next = st.columns(2)
         with col_prev:
