@@ -277,7 +277,6 @@ with left_col:
     step = st.session_state.step
     with st.sidebar:
         st.markdown("### 🔁 Load a Saved Strategy")
-        save_user_settings_sidebar()
         load_user_settings()
     if step == 0:
         if st.session_state.get("use_excel", False):
@@ -556,6 +555,8 @@ with left_col:
             # --- Save Strategy Option ---
             st.markdown("---")
             st.markdown("### 💾 Save This Strategy")
+
+        save_user_settings_sidebar()
 
 st.markdown("""
     <style>
