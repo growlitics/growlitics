@@ -552,10 +552,6 @@ with left_col:
             with col_b:
                 st.metric("Relative Intensity", f"{percent:.1f}%")
 
-            # --- Save Strategy Option ---
-            st.markdown("---")
-            st.markdown("### 💾 Save This Strategy")
-
         save_user_settings_sidebar()
 
 st.markdown("""
