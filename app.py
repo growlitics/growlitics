@@ -65,17 +65,14 @@ def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy fil
 def save_user_settings():
     with st.form("save_strategy_form", clear_on_submit=False):
         strategy_name = st.text_input("💾 Name this strategy before saving:", key="save_strategy_name")
-        if not strategy_name:
-            st.warning("⚠️ Please enter a strategy name before saving.")
-            return
-        submit = st.form_submit_button("📁 Save Strategy Settings to Excel")
+        submit = st.form_submit_button("📁 Save Strategy Settings to GitHub")
 
         if submit:
-            st.write("✅ Form submitted")
-            strategy_name = strategy_name.strip()
-            if not strategy_name:
+            if not strategy_name.strip():
                 st.warning("⚠️ Please enter a strategy name before saving.")
                 return
+
+            st.write("✅ Form submitted")
 
             user_settings = {
                 "crop": st.session_state.get("crop"),
@@ -104,13 +101,12 @@ def save_user_settings():
                 "sim_time": str(st.session_state.get("sim_time")),
             }
 
-            filename = SAVE_DIR / f"user_settings_{strategy_name}.xlsx"
+            filename = SAVE_DIR / f"user_settings_{strategy_name.strip()}.xlsx"
             pd.DataFrame([user_settings]).to_excel(filename, index=False)
 
             try:
                 with open(filename, "rb") as f:
                     st.write("📤 Attempting GitHub upload...")
-
                     commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
             except Exception as e:
                 st.error(f"❌ Commit to GitHub failed: {e}")
