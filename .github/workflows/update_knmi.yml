@@ -24,4 +24,4 @@ jobs:
           pip install pandas requests openpyxl
 
       - name: Run update script
-        run: python update_knmi.py
+        run: python realized_weather.py
