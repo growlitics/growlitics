@@ -29,6 +29,9 @@ def dimming_column():
 def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy file"):
     import base64
     GH_TOKEN = st.secrets["GH_TOKEN"]
+    if not GH_TOKEN or GH_TOKEN.startswith("ghp_") == False:
+        st.error("❌ GH_TOKEN is missing or malformed.")
+        return
     REPO = "growlitics/growlitics"
     BRANCH = "main"
     PATH = f"saved_strategies/{filename}"
@@ -53,6 +56,10 @@ def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy fil
         st.success("✅ Strategy committed to GitHub.")
     else:
         st.error(f"❌ GitHub commit failed: {put_resp.json()}")
+        
+    st.write("Request URL:", get_url)
+    st.write("Status code:", put_resp.status_code)
+    st.write("Response:", put_resp.json())
 
 # --- Save User Settings Function ---
 def save_user_settings():
@@ -94,12 +101,9 @@ def save_user_settings():
             }
 
             filename = SAVE_DIR / f"user_settings_{strategy_name}.xlsx"
-            df = pd.DataFrame([user_settings])
-            df.to_excel(filename, index=False)
-            
-            # Commit it to GitHub
-            with open(filename, "rb") as f:
-                commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
+            pd.DataFrame([user_settings]).to_excel(filename, index=False)
+
+            git_commit_push(filename, commit_msg=f"🔁 Auto-commit: {strategy_name}")
 
             st.success(f"✅ Settings saved to: `{filename}`")
             st.experimental_rerun()
