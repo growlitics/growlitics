@@ -13,6 +13,18 @@ SAVE_DIR.mkdir(exist_ok=True)
 
 st.set_page_config(page_title="Growlitics", layout="wide")
 
+def safe_int(val, default):
+    try:
+        if pd.isna(val): return default
+        return int(float(val))
+    except Exception: return default
+
+def safe_float(val, default):
+    try:
+        if pd.isna(val): return default
+        return float(val)
+    except Exception: return default
+
 # --- Time Rounding ---
 def round_time_to_nearest_15(dt: datetime) -> time:
     discard = timedelta(minutes=dt.minute % 15, seconds=dt.second, microseconds=dt.microsecond)
