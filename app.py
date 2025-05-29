@@ -64,6 +64,8 @@ def save_user_settings():
 
             filename = SAVE_DIR / f"user_settings_{strategy_name}.xlsx"
             pd.DataFrame([user_settings]).to_excel(filename, index=False)
+            
+            git_commit_push(filename)
 
             st.success(f"✅ Settings saved to: `{filename}`")
             st.experimental_rerun()
