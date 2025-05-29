@@ -2,6 +2,10 @@ import streamlit as st
 from datetime import date, datetime, time, timedelta
 import pandas as pd
 import os
+import pathlib
+BASE_DIR = pathlib.Path(__file__).parent.resolve()
+SAVE_DIR = pathlib.Path(__file__).parent / "saved_strategies"
+SAVE_DIR.mkdir(exist_ok=True)
 
 st.set_page_config(page_title="Growlitics", layout="wide")
 
@@ -18,6 +22,64 @@ def dimming_column():
         "% dimmen",
         validate=r"^([0-9]|[1-9][0-9]|100)%?$"
     )
+
+# --- Save User Settings Function ---
+def save_user_settings():
+    with st.form("save_strategy_form", clear_on_submit=False):
+        strategy_name = st.text_input("💾 Name this strategy before saving:", key="save_strategy_name")
+        submit = st.form_submit_button("📁 Save Strategy Settings to Excel")
+
+        if submit:
+            strategy_name = strategy_name.strip()
+            if not strategy_name:
+                st.warning("⚠️ Please enter a strategy name before saving.")
+                return
+
+            user_settings = {
+                "crop": st.session_state.get("crop"),
+                "transmission": st.session_state.get("transmission"),
+                "lighting_type": st.session_state.get("lighting_type"),
+                "lighting_intensity": st.session_state.get("lighting_intensity"),
+                "plant_density": st.session_state.get("plant_density"),
+                "plant_date": str(st.session_state.get("plant_date")),
+                "long_days": st.session_state.get("long_days"),
+                "long_day_dark_screen_rad": st.session_state.get("long_day_dark_screen_rad"),
+                "long_day_dark_screen_percentage": st.session_state.get("long_day_dark_screen_percentage"),
+                "long_day_energy_screen_rad": st.session_state.get("long_day_energy_screen_rad"),
+                "long_day_energy_screen_percentage": st.session_state.get("long_day_energy_screen_percentage"),
+                "short_days": st.session_state.get("short_days"),
+                "short_day_dark_screen_rad": st.session_state.get("short_day_dark_screen_rad"),
+                "short_day_dark_screen_percentage": st.session_state.get("short_day_dark_screen_percentage"),
+                "short_day_energy_screen_temp_dif": st.session_state.get("short_day_energy_screen_temp_dif"),
+                "short_day_energy_screen_rad": st.session_state.get("short_day_energy_screen_rad"),
+                "short_day_energy_screen_percentage": st.session_state.get("short_day_energy_screen_percentage"),
+                "target_weight": st.session_state.get("target_weight"),
+                "taxes": st.session_state.get("taxes"),
+                "expected_price": st.session_state.get("expected_price"),
+                "bonus": st.session_state.get("bonus"),
+                "penalty": st.session_state.get("penalty"),
+                "sim_date": str(st.session_state.get("sim_date")),
+                "sim_time": str(st.session_state.get("sim_time")),
+            }
+
+            filename = SAVE_DIR / f"user_settings_{strategy_name}.xlsx"
+            pd.DataFrame([user_settings]).to_excel(filename, index=False)
+
+            st.success(f"✅ Settings saved to: `{filename}`")
+            st.experimental_rerun()
+            
+# --- Load User Settings ---
+def load_user_settings():
+    files = list(SAVE_DIR.glob("*.xlsx"))
+    if files:
+        selected_file = st.selectbox("📂 Load existing strategy", [f.name for f in files])
+        if st.button("📤 Load Strategy"):
+            df = pd.read_excel(SAVE_DIR / selected_file)
+            for col in df.columns:
+                st.session_state[col] = df[col].iloc[0]
+            st.success(f"✅ Loaded settings from `{selected_file}`")
+    else:
+        st.info("No saved strategies found in ./saved_strategies")
 
 # --- Wizard State ---
 if "step" not in st.session_state:
@@ -173,7 +235,9 @@ with left_col:
         st.stop()
 
     step = st.session_state.step
-
+    with st.sidebar:
+        st.markdown("### 🔁 Load a Saved Strategy")
+        load_user_settings()
     if step == 0:
         if st.session_state.get("use_excel", False):
             st.subheader("📅 Step 1: Select Planning Info from QMS")
@@ -447,6 +511,11 @@ with left_col:
                 st.metric("Light Intensity", f"{umol} µmol/m²/s")
             with col_b:
                 st.metric("Relative Intensity", f"{percent:.1f}%")
+
+            # --- Save Strategy Option ---
+            st.markdown("---")
+            st.markdown("### 💾 Save This Strategy")
+            save_user_settings()
 
 st.markdown("""
     <style>
