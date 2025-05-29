@@ -603,23 +603,23 @@ with left_col:
         st.subheader("💰 Step 5: Economics")
         st.session_state.target_weight = st.number_input(
             "Target Weight (g)", 0, 500,
-            value=int(st.session_state.get("target_weight", int(float(70))), key="selected_target_weight"
+            value=safe_int(st.session_state.get("target_weight"), 70), key="target_weight"
         )
         st.session_state.taxes = st.number_input(
             "Grid energy tax/delivery surcharge (€/kWh)", 0.00, 0.10,
-            value=float(st.session_state.get("taxes", 0.05)), step=0.01, key="selected_taxes"
+            value=safe_float(st.session_state.get("taxes"), 0.05), step=0.01, key="taxes"
         )
         st.session_state.expected_price = st.number_input(
             "Crop Price (€ / plant)", 0.0, 10.0,
-            value=float(st.session_state.get("expected_price", 0.50)), step=0.01, key="selected_expected_price"
+            value=safe_float(st.session_state.get("expected_price"), 0.50), step=0.01, key="expected_price"
         )
         st.session_state.bonus = st.number_input(
             "Bonus (€ / g)", 0.0, 1.0,
-            value=float(st.session_state.get("bonus", 0.02)), step=0.001, key="selected_bonus"
+            value=safe_float(st.session_state.get("bonus"), 0.02), step=0.001, key="bonus"
         )
         st.session_state.penalty = st.number_input(
             "Penalty (€ / g)", min_value=-1.0, max_value=0.0,
-            value=float(st.session_state.get("penalty", -0.04)), step=0.001, key="selected_penalty"
+            value=safe_float(st.session_state.get("penalty"), -0.04), step=0.001, key="penalty"
         )
         col_prev, col_next = st.columns(2)
         with col_prev:
