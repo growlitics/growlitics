@@ -8,6 +8,7 @@ import subprocess
 import requests
 import base64
 import json
+import re
 
 SETTINGS_FILE = "user_settings.json"
 SAVE_DIR = pathlib.Path("saved_strategies")
@@ -15,21 +16,72 @@ SAVE_DIR.mkdir(exist_ok=True)
 
 st.set_page_config(page_title="Growlitics", layout="wide")
 
-def save_settings_to_github(settings):
+def save_named_settings_to_github(settings, preset_name):
+    # Only allow safe filenames
+    safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', preset_name.strip())
+    if not safe_name:
+        raise ValueError("Preset name cannot be empty or invalid.")
+    filename = f"{safe_name}.json"
     content = json.dumps(settings, indent=2).encode("utf-8")
-    commit_to_github(SETTINGS_FILE, content, commit_msg="Save user settings")
+    commit_to_github(filename, content, commit_msg=f"Save settings preset {filename}")
+    return filename
 
-def load_settings_from_github():
+def load_named_settings_from_github(filename):
     try:
-        url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{SETTINGS_FILE}"
+        url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{filename}"
         resp = requests.get(url)
         resp.raise_for_status()
         loaded = json.loads(resp.content.decode())
         for k, v in loaded.items():
             st.session_state[k] = tuple(v) if isinstance(v, list) else v
-        st.success("✅ Loaded settings from GitHub!")
+        st.success(f"✅ Loaded preset '{filename}' from GitHub!")
     except Exception as e:
-        st.error(f"❌ Failed to load: {e}")
+        st.error(f"❌ Failed to load preset: {e}")
+
+with st.sidebar:
+    st.image("logo.png", width=60)
+    menu_choice = st.radio(
+        "📋 Menu",
+        ["Main", "Settings", "Upload Input Data"],
+        index=0,
+        key="sidebar_menu"
+    )
+
+    # --- Save/Load strategies (unchanged) ---
+
+    st.markdown("---")
+    st.markdown("### ⚙️ Save/Load Optimization Range Presets")
+    preset_name = st.text_input("Preset name", key="range_preset_name")
+    current_settings = {
+        "long_days_range": st.session_state.get("long_days_range", (5, 9)),
+        "short_days_range": st.session_state.get("short_days_range", (40, 60)),
+        "plant_density_range": st.session_state.get("plant_density_range", (40, 60)),
+    }
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Save as preset"):
+            try:
+                if not preset_name.strip():
+                    st.warning("⚠️ Please enter a preset name.")
+                else:
+                    filename = save_named_settings_to_github(current_settings, preset_name)
+                    st.success(f"Preset '{filename}' saved!")
+            except Exception as e:
+                st.error(f"❌ {e}")
+    with col2:
+        # List available presets (.json)
+        GH_TOKEN = st.secrets["GH_TOKEN"]
+        headers = {"Authorization": f"token {GH_TOKEN}"}
+        api_url = "https://api.github.com/repos/growlitics/growlitics/contents/saved_strategies"
+        try:
+            resp = requests.get(api_url, headers=headers)
+            preset_files = [f["name"] for f in resp.json() if f["name"].endswith(".json")]
+        except:
+            preset_files = []
+        selected_preset = st.selectbox("Available presets", preset_files, key="select_preset_file")
+        if st.button("Load selected preset"):
+            if selected_preset:
+                load_named_settings_from_github(selected_preset)
 
 def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy file"):
     GH_TOKEN = st.secrets["GH_TOKEN"]
@@ -147,12 +199,11 @@ with st.sidebar:
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Save settings (ranges) to GitHub"):
-            save_settings_to_github(settings)
+            save_named_settings_to_github(settings)
             st.success("Settings saved to GitHub!")
     with col2:
         if st.button("Load settings (ranges) from GitHub"):
-            load_settings_from_github()
-
+            load_named_settings_from_github()
 
 def safe_int(val, default):
     try:
