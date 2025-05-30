@@ -82,6 +82,9 @@ with st.sidebar:
                 # ... your logic for saving strategy as .xlsx ...
                 user_settings = {
                     "crop": st.session_state.get("crop"),
+                    "rondejaar": st.session_state.get("rondejaar"),  
+                    "rondenummer": st.session_state.get("rondenummer"),    
+                    "vak": st.session_state.get("vak"),                  
                     "transmission": st.session_state.get("transmission"),
                     "lighting_type": st.session_state.get("lighting_type"),
                     "lighting_intensity": st.session_state.get("lighting_intensity"),
