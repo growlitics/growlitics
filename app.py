@@ -13,6 +13,16 @@ SAVE_DIR.mkdir(exist_ok=True)
 
 st.set_page_config(page_title="Growlitics", layout="wide")
 
+# --- SIDEBAR MENU ---
+with st.sidebar:
+    st.image("logo.png", width=60)
+    menu_choice = st.radio(
+        "📋 Menu",
+        ["Main", "Settings", "Upload Input Data"],
+        index=0,
+        key="sidebar_menu"
+    )
+
 def safe_int(val, default):
     try:
         if pd.isna(val): return default
@@ -65,6 +75,8 @@ def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy fil
         put_data["sha"] = sha  # Include for updates
 
     put_resp = requests.put(get_url, headers=headers, json=put_data)
+    if not put_resp.ok:
+        raise Exception(put_resp.text)
                 
 def save_user_settings_sidebar():
     with st.sidebar:
@@ -133,6 +145,45 @@ def load_user_settings():
             st.success(f"✅ Loaded settings from `{selected_file}`")
     else:
         st.info("No saved strategies found in GitHub.")
+
+def show_settings_page():
+    st.header("⚙️ Optimization Settings & Limitations")
+    st.info("Set limits or defaults for optimization steps here (e.g. minimum and maximum 'Lange Dagen').")
+
+    # Example: limits for 'Lange Dagen'
+    min_ld = st.number_input("Min Lange Dagen", min_value=1, max_value=16, value=st.session_state.get("min_ld", 5), key="min_ld")
+    max_ld = st.number_input("Max Lange Dagen", min_value=min_ld, max_value=16, value=st.session_state.get("max_ld", 9), key="max_ld")
+    st.session_state["min_ld"] = min_ld
+    st.session_state["max_ld"] = max_ld
+
+    # --- Add more settings as needed here ---
+
+    if st.button("💾 Save Settings"):
+        st.success("Settings saved to session (will be applied in wizard).")
+
+# === UPLOAD PAGE ===
+def show_upload_page():
+    st.header("⬆️ Upload Input Data")
+    uploaded_file = st.file_uploader("Select an input file (xlsx/csv)", type=["xlsx", "csv"], key="uploader")
+    if uploaded_file is not None:
+        file_bytes = uploaded_file.read()
+        filename = uploaded_file.name
+
+        st.write(f"**Selected:** `{filename}`")
+        if st.button("Upload & Save to GitHub"):
+            try:
+                commit_to_github(filename, file_bytes, commit_msg=f"User uploaded {filename}")
+                st.success(f"✅ `{filename}` uploaded and committed to GitHub!")
+            except Exception as e:
+                st.error(f"❌ Upload failed: {e}")
+
+# === MAIN MENU SELECTOR (STOPS THE REST IF NOT 'MAIN') ===
+if st.session_state.get("sidebar_menu", "Main") == "Settings":
+    show_settings_page()
+    st.stop()
+elif st.session_state.get("sidebar_menu", "Main") == "Upload Input Data":
+    show_upload_page()
+    st.stop()
 
 # --- Wizard State ---
 if "step" not in st.session_state:
