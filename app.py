@@ -286,16 +286,18 @@ def show_settings_page():
 
 # === UPLOAD PAGE ===
 def show_upload_page():
+    # Use password/crop/user as ID
+    user = st.session_state.get("password") or st.session_state.get("crop") or "user"
+    folder = f"uploaded_data_{user}"
+
     # --- 1. Planning Data Upload ---
     st.header("📋 Uploading Planning Data")
-    st.write("Upload your planning/teeltplanning file (xlsx/csv). It will be saved as USER_planning_data.xlsx/csv, where USER is your password or chosen ID.")
+    st.write("Upload your planning/teeltplanning file (xlsx/csv). It will be saved as USER_planning_data.xlsx/csv in a user-specific folder.")
 
-    # Use password from session, or prompt for it if needed
-    user = st.session_state.get("password") or st.session_state.get("crop") or "user"
     planning_file = st.file_uploader("Upload planning file", type=["xlsx", "csv"], key="planning_upload")
     if planning_file is not None:
         ext = os.path.splitext(planning_file.name)[-1]
-        filename = f"{user}_planning_data{ext}"
+        filename = f"{folder}/{user}_planning_data{ext}"
         file_bytes = planning_file.read()
         st.write(f"**Selected:** `{planning_file.name}`")
         if st.button("Upload Planning Data"):
@@ -309,9 +311,8 @@ def show_upload_page():
 
     # --- 2. Train Climate Profiler (just 4 uploads) ---
     st.header("🌡️ Train Climate Profiler")
-    st.write("Upload training data for the climate profiler. Provide one file each for Radiation, Temperature, CO₂, and RV (humidity).")
+    st.write("Upload training data for the climate profiler. Provide one file each for Radiation, Temperature, CO₂, and RV (humidity). Each will be stored in your folder.")
 
-    # Define uploaders and buttons for 4 variables
     profiler_vars = [
         ("A", "Radiation"),
         ("B", "Temperature"),
@@ -324,7 +325,7 @@ def show_upload_page():
             file = st.file_uploader(f"{label} Data", type=["csv", "xlsx"], key=f"profiler_{suffix}")
             if file is not None:
                 ext = os.path.splitext(file.name)[-1]
-                filename = f"{user}_climate_profiler_{suffix}{ext}"
+                filename = f"{folder}/{user}_climate_profiler_{suffix}{ext}"
                 file_bytes = file.read()
                 if st.button(f"Upload {label}", key=f"upload_{suffix}"):
                     try:
