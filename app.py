@@ -148,53 +148,69 @@ def load_user_settings():
     else:
         st.info("No saved strategies found in GitHub.")
 
+def save_settings_to_github(settings):
+    content = json.dumps(settings, indent=2).encode("utf-8")
+    commit_to_github(SETTINGS_FILE, content, commit_msg="Save user settings")
+
+def load_settings_from_github():
+    try:
+        url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{SETTINGS_FILE}"
+        resp = requests.get(url)
+        resp.raise_for_status()
+        loaded = json.loads(resp.content.decode())
+        for k, v in loaded.items():
+            st.session_state[k] = tuple(v) if isinstance(v, list) else v
+        st.success("✅ Loaded settings from GitHub!")
+    except Exception as e:
+        st.error(f"❌ Failed to load: {e}")
+
 def show_settings_page():
     st.header("⚙️ Optimization Settings & Limitations")
-    st.info("Configure default ranges and constraints for optimization. These are applied in your wizard and can be saved/loaded from GitHub.")
+    st.info("Configure allowed ranges and constraints for optimization. These are applied in your wizard and can be saved/loaded from GitHub.")
 
-    # --- Example: Lange Dagen (Long Days) Range ---
+    # --- Example RANGES ---
     long_days_range = st.slider(
         "Allowed range for 'Lange Dagen' (Long Days)", 
-        min_value=1, max_value=16, value=st.session_state.get("long_days_range", (5, 9)),
+        min_value=1, max_value=16, 
+        value=st.session_state.get("long_days_range", (5, 9)),
         step=1, key="long_days_range"
     )
-    st.session_state["long_days_range"] = long_days_range
 
-    # Add more settings as you want here:
-    # short_days_range = st.slider("Allowed range for Short Days", 1, 120, st.session_state.get("short_days_range", (40, 60)), key="short_days_range")
-    # st.session_state["short_days_range"] = short_days_range
+    short_days_range = st.slider(
+        "Allowed range for 'Korte Dagen' (Short Days)",
+        min_value=1, max_value=120,
+        value=st.session_state.get("short_days_range", (40, 60)),
+        step=1, key="short_days_range"
+    )
+
+    plant_density_range = st.slider(
+        "Plant Density (#/m²)", 
+        min_value=10, max_value=100, 
+        value=st.session_state.get("plant_density_range", (40, 60)), 
+        step=1, key="plant_density_range"
+    )
+
+    # --- SETTINGS DICT (collect for saving) ---
+    settings = {
+        "long_days_range": st.session_state["long_days_range"],
+        "short_days_range": st.session_state["short_days_range"],
+        "plant_density_range": st.session_state["plant_density_range"],
+    }
 
     st.markdown("---")
+    # --- SAVE & LOAD BUTTONS --- (always visible on Settings page)
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("💾 Save Settings to GitHub", use_container_width=True):
+            save_settings_to_github(settings)
+            st.success("Settings saved to GitHub!")
+    with col2:
+        if st.button("🔁 Load Settings from GitHub", use_container_width=True):
+            load_settings_from_github()
 
-    # --- SAVE / LOAD to GitHub Buttons ---
-    col_save, col_load = st.columns(2)
-    with col_save:
-        if st.button("💾 Save Settings to GitHub"):
-            # Save current session_state settings as JSON and push to GitHub
-            to_save = {
-                "long_days_range": st.session_state["long_days_range"],
-                # "short_days_range": st.session_state.get("short_days_range"),
-                # Add more settings here!
-            }
-            content = json.dumps(to_save, indent=2).encode("utf-8")
-            try:
-                commit_to_github(SETTINGS_FILE, content, commit_msg="Save user settings")
-                st.success("✅ Settings saved to GitHub!")
-            except Exception as e:
-                st.error(f"❌ Failed to save: {e}")
-    with col_load:
-        if st.button("🔁 Load Settings from GitHub"):
-            # Fetch settings file from GitHub and update session_state
-            try:
-                url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{SETTINGS_FILE}"
-                resp = requests.get(url)
-                resp.raise_for_status()
-                loaded = json.loads(resp.content.decode())
-                for k, v in loaded.items():
-                    st.session_state[k] = tuple(v) if isinstance(v, list) else v
-                st.success("✅ Loaded settings from GitHub!")
-            except Exception as e:
-                st.error(f"❌ Failed to load: {e}")
+    # --- Display current values for debugging ---
+    st.markdown("#### Current Settings")
+    st.json(settings)
 
     # --- Display current values for debugging ---
     st.markdown("#### Current Settings")
