@@ -70,118 +70,116 @@ with st.sidebar:
         key="sidebar_menu"  # DO NOT reuse this key anywhere else!
     )
 
-    st.markdown("### 💾 Save/Load Strategy")
-    # --- Save Strategy (.xlsx, all wizard settings) ---
-    with st.form("save_strategy_form_sidebar", clear_on_submit=False):
-        strategy_name = st.text_input("Strategy name", key="sidebar_strategy_name")
-        save_submit = st.form_submit_button("Save strategy to GitHub")
-        if save_submit:
-            if not strategy_name.strip():
-                st.warning("⚠️ Please enter a strategy name before saving.")
+    if st.session_state.get("sidebar_menu", "Main") == "Main":
+        st.markdown("### 💾 Save/Load Strategy")
+        # --- Save Strategy (.xlsx, all wizard settings) ---
+        with st.form("save_strategy_form_sidebar", clear_on_submit=False):
+            strategy_name = st.text_input("Strategy name", key="sidebar_strategy_name")
+            save_submit = st.form_submit_button("Save strategy to GitHub")
+            if save_submit:
+                if not strategy_name.strip():
+                    st.warning("⚠️ Please enter a strategy name before saving.")
+                else:
+                    user_settings = {
+                        "crop": st.session_state.get("crop"),
+                        "rondejaar": st.session_state.get("rondejaar"),  
+                        "rondenummer": st.session_state.get("rondenummer"),    
+                        "vak": st.session_state.get("vak"),                  
+                        "transmission": st.session_state.get("transmission"),
+                        "lighting_type": st.session_state.get("lighting_type"),
+                        "lighting_intensity": st.session_state.get("lighting_intensity"),
+                        "plant_density": st.session_state.get("plant_density"),
+                        "plant_date": str(st.session_state.get("plant_date")),
+                        "long_days": st.session_state.get("long_days"),
+                        "long_day_dark_screen_rad": st.session_state.get("long_day_dark_screen_rad"),
+                        "long_day_dark_screen_percentage": st.session_state.get("long_day_dark_screen_percentage"),
+                        "long_day_energy_screen_rad": st.session_state.get("long_day_energy_screen_rad"),
+                        "long_day_energy_screen_percentage": st.session_state.get("long_day_energy_screen_percentage"),
+                        "short_days": st.session_state.get("short_days"),
+                        "short_day_dark_screen_rad": st.session_state.get("short_day_dark_screen_rad"),
+                        "short_day_dark_screen_percentage": st.session_state.get("short_day_dark_screen_percentage"),
+                        "short_day_energy_screen_temp_dif": st.session_state.get("short_day_energy_screen_temp_dif"),
+                        "short_day_energy_screen_rad": st.session_state.get("short_day_energy_screen_rad"),
+                        "short_day_energy_screen_percentage": st.session_state.get("short_day_energy_screen_percentage"),
+                        "target_weight": st.session_state.get("target_weight"),
+                        "taxes": st.session_state.get("taxes"),
+                        "expected_price": st.session_state.get("expected_price"),
+                        "bonus": st.session_state.get("bonus"),
+                        "penalty": st.session_state.get("penalty"),
+                        "sim_date": str(st.session_state.get("sim_date")),
+                        "sim_time": str(st.session_state.get("sim_time")),
+                    }
+                    filename = SAVE_DIR / f"{strategy_name.strip()}.xlsx"
+                    pd.DataFrame([user_settings]).to_excel(filename, index=False)
+                    try:
+                        with open(filename, "rb") as f:
+                            commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
+                        st.success(f"✅ Strategy `{filename.name}` saved to GitHub!")
+                    except Exception as e:
+                        st.error(f"❌ Commit to GitHub failed: {e}")
+
+        # --- Load Strategy (.xlsx) ---
+        GH_TOKEN = st.secrets["GH_TOKEN"]
+        headers = {"Authorization": f"token {GH_TOKEN}"}
+        api_url = "https://api.github.com/repos/growlitics/growlitics/contents/saved_strategies"
+        try:
+            resp = requests.get(api_url, headers=headers)
+            files = [f["name"] for f in resp.json() if f["name"].endswith(".xlsx")]
+        except:
+            files = []
+        if files:
+            selected_file = st.selectbox("Load existing strategy", files, key="sidebar_load_strategy")
+            if st.button("Load selected strategy"):
+                raw_url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{selected_file}"
+                import io
+                resp = requests.get(raw_url)
+                df = pd.read_excel(io.BytesIO(resp.content))
+                for col in df.columns:
+                    st.session_state[col] = df[col].iloc[0]
+                st.success(f"✅ Loaded settings from `{selected_file}`")
+        else:
+            st.info("No saved strategies found.")
+
+    if st.session_state.get("sidebar_menu", "Main") == "Settings":
+        st.markdown("### ⚙️ Save/Load Optimization Range Presets")
+        # ---- Save preset (RANGES) ----
+        preset_name = st.text_input("Preset name", key="range_preset_name")
+        if st.button("Save as preset"):
+            if not preset_name.strip():
+                st.warning("Please enter a preset name.")
             else:
-                # ... your logic for saving strategy as .xlsx ...
-                user_settings = {
-                    "crop": st.session_state.get("crop"),
-                    "rondejaar": st.session_state.get("rondejaar"),  
-                    "rondenummer": st.session_state.get("rondenummer"),    
-                    "vak": st.session_state.get("vak"),                  
-                    "transmission": st.session_state.get("transmission"),
-                    "lighting_type": st.session_state.get("lighting_type"),
-                    "lighting_intensity": st.session_state.get("lighting_intensity"),
-                    "plant_density": st.session_state.get("plant_density"),
-                    "plant_date": str(st.session_state.get("plant_date")),
-                    "long_days": st.session_state.get("long_days"),
-                    "long_day_dark_screen_rad": st.session_state.get("long_day_dark_screen_rad"),
-                    "long_day_dark_screen_percentage": st.session_state.get("long_day_dark_screen_percentage"),
-                    "long_day_energy_screen_rad": st.session_state.get("long_day_energy_screen_rad"),
-                    "long_day_energy_screen_percentage": st.session_state.get("long_day_energy_screen_percentage"),
-                    "short_days": st.session_state.get("short_days"),
-                    "short_day_dark_screen_rad": st.session_state.get("short_day_dark_screen_rad"),
-                    "short_day_dark_screen_percentage": st.session_state.get("short_day_dark_screen_percentage"),
-                    "short_day_energy_screen_temp_dif": st.session_state.get("short_day_energy_screen_temp_dif"),
-                    "short_day_energy_screen_rad": st.session_state.get("short_day_energy_screen_rad"),
-                    "short_day_energy_screen_percentage": st.session_state.get("short_day_energy_screen_percentage"),
-                    "target_weight": st.session_state.get("target_weight"),
-                    "taxes": st.session_state.get("taxes"),
-                    "expected_price": st.session_state.get("expected_price"),
-                    "bonus": st.session_state.get("bonus"),
-                    "penalty": st.session_state.get("penalty"),
-                    "sim_date": str(st.session_state.get("sim_date")),
-                    "sim_time": str(st.session_state.get("sim_time")),
+                range_settings = {
+                    "long_days_range": st.session_state.get("long_days_range", (5, 9)),
+                    "short_days_range": st.session_state.get("short_days_range", (40, 60)),
+                    "plant_density_range": st.session_state.get("plant_density_range", (40, 60)),
                 }
-                filename = SAVE_DIR / f"{strategy_name.strip()}.xlsx"
-                pd.DataFrame([user_settings]).to_excel(filename, index=False)
+                filename = SAVE_DIR / f"{preset_name.strip()}.json"
+                with open(filename, "w") as f:
+                    json.dump(range_settings, f, indent=2)
                 try:
                     with open(filename, "rb") as f:
-                        commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
-                    st.success(f"✅ Strategy `{filename.name}` saved to GitHub!")
+                        commit_to_github(filename.name, f.read(), commit_msg=f"Save preset {filename.name}")
+                    st.success(f"✅ Preset `{filename.name}` saved to GitHub!")
                 except Exception as e:
                     st.error(f"❌ Commit to GitHub failed: {e}")
 
-    # --- Load Strategy (.xlsx) ---
-    GH_TOKEN = st.secrets["GH_TOKEN"]
-    headers = {"Authorization": f"token {GH_TOKEN}"}
-    api_url = "https://api.github.com/repos/growlitics/growlitics/contents/saved_strategies"
-    try:
-        resp = requests.get(api_url, headers=headers)
-        files = [f["name"] for f in resp.json() if f["name"].endswith(".xlsx")]
-    except:
-        files = []
-    if files:
-        selected_file = st.selectbox("Load existing strategy", files, key="sidebar_load_strategy")
-        if st.button("Load selected strategy"):
-            raw_url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{selected_file}"
-            import io
-            resp = requests.get(raw_url)
-            df = pd.read_excel(io.BytesIO(resp.content))
-            for col in df.columns:
-                st.session_state[col] = df[col].iloc[0]
-            st.success(f"✅ Loaded settings from `{selected_file}`")
-    else:
-        st.info("No saved strategies found.")
-
-    st.markdown("---")
-    st.markdown("### ⚙️ Save/Load Optimization Range Presets")
-
-    # ---- Save preset (RANGES) ----
-    preset_name = st.text_input("Preset name", key="range_preset_name")
-    if st.button("Save as preset"):
-        if not preset_name.strip():
-            st.warning("Please enter a preset name.")
+        # ---- Load preset (RANGES) ----
+        try:
+            resp = requests.get(api_url, headers=headers)
+            json_files = [f["name"] for f in resp.json() if f["name"].endswith(".json")]
+        except:
+            json_files = []
+        if json_files:
+            selected_preset = st.selectbox("Available presets", json_files, key="sidebar_load_range_preset")
+            if st.button("Load selected preset"):
+                raw_url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{selected_preset}"
+                resp = requests.get(raw_url)
+                preset = json.loads(resp.content.decode())
+                for k, v in preset.items():
+                    st.session_state[k] = tuple(v) if isinstance(v, list) else v
+                st.success(f"✅ Loaded preset `{selected_preset}`")
         else:
-            range_settings = {
-                "long_days_range": st.session_state.get("long_days_range", (5, 9)),
-                "short_days_range": st.session_state.get("short_days_range", (40, 60)),
-                "plant_density_range": st.session_state.get("plant_density_range", (40, 60)),
-            }
-            # Save each preset as its own JSON file
-            filename = SAVE_DIR / f"{preset_name.strip()}.json"
-            with open(filename, "w") as f:
-                json.dump(range_settings, f, indent=2)
-            try:
-                with open(filename, "rb") as f:
-                    commit_to_github(filename.name, f.read(), commit_msg=f"Save preset {filename.name}")
-                st.success(f"✅ Preset `{filename.name}` saved to GitHub!")
-            except Exception as e:
-                st.error(f"❌ Commit to GitHub failed: {e}")
-
-    # ---- Load preset (RANGES) ----
-    try:
-        resp = requests.get(api_url, headers=headers)
-        json_files = [f["name"] for f in resp.json() if f["name"].endswith(".json")]
-    except:
-        json_files = []
-    if json_files:
-        selected_preset = st.selectbox("Available presets", json_files, key="sidebar_load_range_preset")
-        if st.button("Load selected preset"):
-            raw_url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{selected_preset}"
-            resp = requests.get(raw_url)
-            preset = json.loads(resp.content.decode())
-            for k, v in preset.items():
-                st.session_state[k] = tuple(v) if isinstance(v, list) else v
-            st.success(f"✅ Loaded preset `{selected_preset}`")
-    else:
-        st.info("No saved presets found.")
+            st.info("No saved presets found.")
 
 def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy file"):
     GH_TOKEN = st.secrets["GH_TOKEN"]
