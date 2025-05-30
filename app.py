@@ -15,41 +15,21 @@ SAVE_DIR.mkdir(exist_ok=True)
 
 st.set_page_config(page_title="Growlitics", layout="wide")
 
-# --- SIDEBAR MENU ---
-with st.sidebar:
-    st.image("logo.png", width=60)
-    menu_choice = st.radio(
-        "📋 Menu",
-        ["Main", "Settings", "Upload Input Data"],
-        index=0,
-        key="sidebar_menu"
-    )
+def save_settings_to_github(settings):
+    content = json.dumps(settings, indent=2).encode("utf-8")
+    commit_to_github(SETTINGS_FILE, content, commit_msg="Save user settings")
 
-def safe_int(val, default):
+def load_settings_from_github():
     try:
-        if pd.isna(val): return default
-        return int(float(val))
-    except Exception: return default
-
-def safe_float(val, default):
-    try:
-        if pd.isna(val): return default
-        return float(val)
-    except Exception: return default
-
-# --- Time Rounding ---
-def round_time_to_nearest_15(dt: datetime) -> time:
-    discard = timedelta(minutes=dt.minute % 15, seconds=dt.second, microseconds=dt.microsecond)
-    dt -= discard
-    if discard >= timedelta(minutes=7.5):
-        dt += timedelta(minutes=15)
-    return dt.time()
-
-def dimming_column():
-    return st.column_config.TextColumn(
-        "% dimmen",
-        validate=r"^([0-9]|[1-9][0-9]|100)%?$"
-    )
+        url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{SETTINGS_FILE}"
+        resp = requests.get(url)
+        resp.raise_for_status()
+        loaded = json.loads(resp.content.decode())
+        for k, v in loaded.items():
+            st.session_state[k] = tuple(v) if isinstance(v, list) else v
+        st.success("✅ Loaded settings from GitHub!")
+    except Exception as e:
+        st.error(f"❌ Failed to load: {e}")
 
 def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy file"):
     GH_TOKEN = st.secrets["GH_TOKEN"]
@@ -79,6 +59,126 @@ def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy fil
     put_resp = requests.put(get_url, headers=headers, json=put_data)
     if not put_resp.ok:
         raise Exception(put_resp.text)
+
+# --- SIDEBAR MENU ---
+with st.sidebar:
+    st.image("logo.png", width=60)
+    menu_choice = st.radio(
+        "📋 Menu",
+        ["Main", "Settings", "Upload Input Data"],
+        index=0,
+        key="sidebar_menu"
+    )
+
+    st.markdown("### 💾 Save/Load Strategy")
+    # --- Save Strategy (.xlsx, all wizard settings) ---
+    with st.form("save_strategy_form", clear_on_submit=False):
+        strategy_name = st.text_input("Strategy name", key="sidebar_strategy_name")
+        save_submit = st.form_submit_button("Save strategy to GitHub")
+        if save_submit:
+            if not strategy_name.strip():
+                st.warning("⚠️ Please enter a strategy name before saving.")
+            else:
+                user_settings = {
+                    "crop": st.session_state.get("crop"),
+                    "transmission": st.session_state.get("transmission"),
+                    "lighting_type": st.session_state.get("lighting_type"),
+                    "lighting_intensity": st.session_state.get("lighting_intensity"),
+                    "plant_density": st.session_state.get("plant_density"),
+                    "plant_date": str(st.session_state.get("plant_date")),
+                    "long_days": st.session_state.get("long_days"),
+                    "long_day_dark_screen_rad": st.session_state.get("long_day_dark_screen_rad"),
+                    "long_day_dark_screen_percentage": st.session_state.get("long_day_dark_screen_percentage"),
+                    "long_day_energy_screen_rad": st.session_state.get("long_day_energy_screen_rad"),
+                    "long_day_energy_screen_percentage": st.session_state.get("long_day_energy_screen_percentage"),
+                    "short_days": st.session_state.get("short_days"),
+                    "short_day_dark_screen_rad": st.session_state.get("short_day_dark_screen_rad"),
+                    "short_day_dark_screen_percentage": st.session_state.get("short_day_dark_screen_percentage"),
+                    "short_day_energy_screen_temp_dif": st.session_state.get("short_day_energy_screen_temp_dif"),
+                    "short_day_energy_screen_rad": st.session_state.get("short_day_energy_screen_rad"),
+                    "short_day_energy_screen_percentage": st.session_state.get("short_day_energy_screen_percentage"),
+                    "target_weight": st.session_state.get("target_weight"),
+                    "taxes": st.session_state.get("taxes"),
+                    "expected_price": st.session_state.get("expected_price"),
+                    "bonus": st.session_state.get("bonus"),
+                    "penalty": st.session_state.get("penalty"),
+                    "sim_date": str(st.session_state.get("sim_date")),
+                    "sim_time": str(st.session_state.get("sim_time")),
+                }
+                filename = SAVE_DIR / f"{strategy_name.strip()}.xlsx"
+                pd.DataFrame([user_settings]).to_excel(filename, index=False)
+                try:
+                    with open(filename, "rb") as f:
+                        commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
+                    st.success(f"✅ Strategy `{filename.name}` saved to GitHub!")
+                except Exception as e:
+                    st.error(f"❌ Commit to GitHub failed: {e}")
+
+    # --- Load Strategy (.xlsx) ---
+    GH_TOKEN = st.secrets["GH_TOKEN"]
+    headers = {"Authorization": f"token {GH_TOKEN}"}
+    api_url = "https://api.github.com/repos/growlitics/growlitics/contents/saved_strategies"
+    try:
+        resp = requests.get(api_url, headers=headers)
+        files = [f["name"] for f in resp.json() if f["name"].endswith(".xlsx")]
+    except:
+        files = []
+    if files:
+        selected_file = st.selectbox("Load existing strategy", files, key="sidebar_load_strategy")
+        if st.button("Load selected strategy"):
+            raw_url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{selected_file}"
+            import io
+            resp = requests.get(raw_url)
+            df = pd.read_excel(io.BytesIO(resp.content))
+            for col in df.columns:
+                st.session_state[col] = df[col].iloc[0]
+            st.success(f"✅ Loaded settings from `{selected_file}`")
+    else:
+        st.info("No saved strategies found.")
+
+    st.markdown("---")
+    st.markdown("### ⚙️ Save/Load Settings (ranges)")
+    # --- Save/Load optimization settings (JSON, for range sliders etc.) ---
+    settings = {
+        "long_days_range": st.session_state.get("long_days_range", (5, 9)),
+        "short_days_range": st.session_state.get("short_days_range", (40, 60)),
+        "plant_density_range": st.session_state.get("plant_density_range", (40, 60)),
+    }
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Save settings (ranges) to GitHub"):
+            save_settings_to_github(settings)
+            st.success("Settings saved to GitHub!")
+    with col2:
+        if st.button("Load settings (ranges) from GitHub"):
+            load_settings_from_github()
+
+
+def safe_int(val, default):
+    try:
+        if pd.isna(val): return default
+        return int(float(val))
+    except Exception: return default
+
+def safe_float(val, default):
+    try:
+        if pd.isna(val): return default
+        return float(val)
+    except Exception: return default
+
+# --- Time Rounding ---
+def round_time_to_nearest_15(dt: datetime) -> time:
+    discard = timedelta(minutes=dt.minute % 15, seconds=dt.second, microseconds=dt.microsecond)
+    dt -= discard
+    if discard >= timedelta(minutes=7.5):
+        dt += timedelta(minutes=15)
+    return dt.time()
+
+def dimming_column():
+    return st.column_config.TextColumn(
+        "% dimmen",
+        validate=r"^([0-9]|[1-9][0-9]|100)%?$"
+    )
                 
 def save_user_settings_sidebar():
     with st.sidebar:
@@ -148,76 +248,31 @@ def load_user_settings():
     else:
         st.info("No saved strategies found in GitHub.")
 
-def save_settings_to_github(settings):
-    content = json.dumps(settings, indent=2).encode("utf-8")
-    commit_to_github(SETTINGS_FILE, content, commit_msg="Save user settings")
-
-def load_settings_from_github():
-    try:
-        url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{SETTINGS_FILE}"
-        resp = requests.get(url)
-        resp.raise_for_status()
-        loaded = json.loads(resp.content.decode())
-        for k, v in loaded.items():
-            st.session_state[k] = tuple(v) if isinstance(v, list) else v
-        st.success("✅ Loaded settings from GitHub!")
-    except Exception as e:
-        st.error(f"❌ Failed to load: {e}")
 
 def show_settings_page():
     st.header("⚙️ Optimization Settings & Limitations")
     st.info("Configure allowed ranges and constraints for optimization. These are applied in your wizard and can be saved/loaded from GitHub.")
 
-    # --- Example RANGES ---
-    long_days_range = st.slider(
+    st.slider(
         "Allowed range for 'Lange Dagen' (Long Days)", 
         min_value=1, max_value=16, 
         value=st.session_state.get("long_days_range", (5, 9)),
         step=1, key="long_days_range"
     )
-
-    short_days_range = st.slider(
+    st.slider(
         "Allowed range for 'Korte Dagen' (Short Days)",
         min_value=1, max_value=120,
         value=st.session_state.get("short_days_range", (40, 60)),
         step=1, key="short_days_range"
     )
-
-    plant_density_range = st.slider(
+    st.slider(
         "Plant Density (#/m²)", 
         min_value=10, max_value=100, 
         value=st.session_state.get("plant_density_range", (40, 60)), 
         step=1, key="plant_density_range"
     )
-
-    # --- SETTINGS DICT (collect for saving) ---
-    settings = {
-        "long_days_range": st.session_state["long_days_range"],
-        "short_days_range": st.session_state["short_days_range"],
-        "plant_density_range": st.session_state["plant_density_range"],
-    }
-
     st.markdown("---")
-    # --- SAVE & LOAD BUTTONS --- (always visible on Settings page)
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("💾 Save Settings to GitHub", use_container_width=True):
-            save_settings_to_github(settings)
-            st.success("Settings saved to GitHub!")
-    with col2:
-        if st.button("🔁 Load Settings from GitHub", use_container_width=True):
-            load_settings_from_github()
-
-    # --- Display current values for debugging ---
-    st.markdown("#### Current Settings")
-    st.json(settings)
-
-    # --- Display current values for debugging ---
-    st.markdown("#### Current Settings")
-    st.json({
-        "long_days_range": st.session_state.get("long_days_range"),
-        # "short_days_range": st.session_state.get("short_days_range"),
-    })
+    st.info("Use the sidebar to save/load strategies or settings.")
 
 # === UPLOAD PAGE ===
 def show_upload_page():
