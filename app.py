@@ -44,93 +44,19 @@ with st.sidebar:
         "📋 Menu",
         ["Main", "Settings", "Upload Input Data"],
         index=0,
-        key="sidebar_menu"
-    )
-
-    # --- Save/Load strategies (unchanged) ---
-
-    st.markdown("---")
-    st.markdown("### ⚙️ Save/Load Optimization Range Presets")
-    preset_name = st.text_input("Preset name", key="range_preset_name")
-    current_settings = {
-        "long_days_range": st.session_state.get("long_days_range", (5, 9)),
-        "short_days_range": st.session_state.get("short_days_range", (40, 60)),
-        "plant_density_range": st.session_state.get("plant_density_range", (40, 60)),
-    }
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Save as preset"):
-            try:
-                if not preset_name.strip():
-                    st.warning("⚠️ Please enter a preset name.")
-                else:
-                    filename = save_named_settings_to_github(current_settings, preset_name)
-                    st.success(f"Preset '{filename}' saved!")
-            except Exception as e:
-                st.error(f"❌ {e}")
-    with col2:
-        # List available presets (.json)
-        GH_TOKEN = st.secrets["GH_TOKEN"]
-        headers = {"Authorization": f"token {GH_TOKEN}"}
-        api_url = "https://api.github.com/repos/growlitics/growlitics/contents/saved_strategies"
-        try:
-            resp = requests.get(api_url, headers=headers)
-            preset_files = [f["name"] for f in resp.json() if f["name"].endswith(".json")]
-        except:
-            preset_files = []
-        selected_preset = st.selectbox("Available presets", preset_files, key="select_preset_file")
-        if st.button("Load selected preset"):
-            if selected_preset:
-                load_named_settings_from_github(selected_preset)
-
-def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy file"):
-    GH_TOKEN = st.secrets["GH_TOKEN"]
-    REPO = "growlitics/growlitics"
-    BRANCH = "main"
-    PATH = f"saved_strategies/{filename}"
-
-    headers = {
-        "Authorization": f"token {GH_TOKEN}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-
-    # Check if file exists to get SHA
-    get_url = f"https://api.github.com/repos/{REPO}/contents/{PATH}"
-    resp = requests.get(get_url, headers=headers, params={"ref": BRANCH})
-    sha = resp.json().get("sha") if resp.status_code == 200 else None
-
-    # Prepare content
-    put_data = {
-        "message": commit_msg,
-        "branch": BRANCH,
-        "content": base64.b64encode(content).decode("utf-8"),
-    }
-    if sha:
-        put_data["sha"] = sha  # Include for updates
-
-    put_resp = requests.put(get_url, headers=headers, json=put_data)
-    if not put_resp.ok:
-        raise Exception(put_resp.text)
-
-# --- SIDEBAR MENU ---
-with st.sidebar:
-    st.image("logo.png", width=60)
-    menu_choice = st.radio(
-        "📋 Menu",
-        ["Main", "Settings", "Upload Input Data"],
-        index=0,
-        key="sidebar_menu"
+        key="sidebar_menu"  # DO NOT reuse this key anywhere else!
     )
 
     st.markdown("### 💾 Save/Load Strategy")
     # --- Save Strategy (.xlsx, all wizard settings) ---
-    with st.form("save_strategy_form", clear_on_submit=False):
+    with st.form("save_strategy_form_sidebar", clear_on_submit=False):
         strategy_name = st.text_input("Strategy name", key="sidebar_strategy_name")
         save_submit = st.form_submit_button("Save strategy to GitHub")
         if save_submit:
             if not strategy_name.strip():
                 st.warning("⚠️ Please enter a strategy name before saving.")
             else:
+                # ... your logic for saving strategy as .xlsx ...
                 user_settings = {
                     "crop": st.session_state.get("crop"),
                     "transmission": st.session_state.get("transmission"),
@@ -189,21 +115,76 @@ with st.sidebar:
         st.info("No saved strategies found.")
 
     st.markdown("---")
-    st.markdown("### ⚙️ Save/Load Settings (ranges)")
-    # --- Save/Load optimization settings (JSON, for range sliders etc.) ---
-    settings = {
-        "long_days_range": st.session_state.get("long_days_range", (5, 9)),
-        "short_days_range": st.session_state.get("short_days_range", (40, 60)),
-        "plant_density_range": st.session_state.get("plant_density_range", (40, 60)),
+    st.markdown("### ⚙️ Save/Load Optimization Range Presets")
+
+    # ---- Save preset (RANGES) ----
+    preset_name = st.text_input("Preset name", key="range_preset_name")
+    if st.button("Save as preset"):
+        if not preset_name.strip():
+            st.warning("Please enter a preset name.")
+        else:
+            range_settings = {
+                "long_days_range": st.session_state.get("long_days_range", (5, 9)),
+                "short_days_range": st.session_state.get("short_days_range", (40, 60)),
+                "plant_density_range": st.session_state.get("plant_density_range", (40, 60)),
+            }
+            # Save each preset as its own JSON file
+            filename = SAVE_DIR / f"{preset_name.strip()}.json"
+            with open(filename, "w") as f:
+                json.dump(range_settings, f, indent=2)
+            try:
+                with open(filename, "rb") as f:
+                    commit_to_github(filename.name, f.read(), commit_msg=f"Save preset {filename.name}")
+                st.success(f"✅ Preset `{filename.name}` saved to GitHub!")
+            except Exception as e:
+                st.error(f"❌ Commit to GitHub failed: {e}")
+
+    # ---- Load preset (RANGES) ----
+    try:
+        resp = requests.get(api_url, headers=headers)
+        json_files = [f["name"] for f in resp.json() if f["name"].endswith(".json")]
+    except:
+        json_files = []
+    if json_files:
+        selected_preset = st.selectbox("Available presets", json_files, key="sidebar_load_range_preset")
+        if st.button("Load selected preset"):
+            raw_url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{selected_preset}"
+            resp = requests.get(raw_url)
+            preset = json.loads(resp.content.decode())
+            for k, v in preset.items():
+                st.session_state[k] = tuple(v) if isinstance(v, list) else v
+            st.success(f"✅ Loaded preset `{selected_preset}`")
+    else:
+        st.info("No saved presets found.")
+
+def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy file"):
+    GH_TOKEN = st.secrets["GH_TOKEN"]
+    REPO = "growlitics/growlitics"
+    BRANCH = "main"
+    PATH = f"saved_strategies/{filename}"
+
+    headers = {
+        "Authorization": f"token {GH_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
     }
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Save settings (ranges) to GitHub"):
-            save_named_settings_to_github(settings)
-            st.success("Settings saved to GitHub!")
-    with col2:
-        if st.button("Load settings (ranges) from GitHub"):
-            load_named_settings_from_github()
+
+    # Check if file exists to get SHA
+    get_url = f"https://api.github.com/repos/{REPO}/contents/{PATH}"
+    resp = requests.get(get_url, headers=headers, params={"ref": BRANCH})
+    sha = resp.json().get("sha") if resp.status_code == 200 else None
+
+    # Prepare content
+    put_data = {
+        "message": commit_msg,
+        "branch": BRANCH,
+        "content": base64.b64encode(content).decode("utf-8"),
+    }
+    if sha:
+        put_data["sha"] = sha  # Include for updates
+
+    put_resp = requests.put(get_url, headers=headers, json=put_data)
+    if not put_resp.ok:
+        raise Exception(put_resp.text)
 
 def safe_int(val, default):
     try:
@@ -230,52 +211,6 @@ def dimming_column():
         "% dimmen",
         validate=r"^([0-9]|[1-9][0-9]|100)%?$"
     )
-                
-def save_user_settings_sidebar():
-    with st.sidebar:
-        st.markdown("### 💾 Save This Strategy")
-        with st.form("save_strategy_form", clear_on_submit=False):
-            strategy_name = st.text_input("Name this strategy before saving:", key="save_strategy_name")
-            submit = st.form_submit_button("📁 Save Strategy Settings to GitHub")
-
-            if submit:
-                if not strategy_name.strip():
-                    st.warning("⚠️ Please enter a strategy name before saving.")
-                    return
-                user_settings = {
-                    "crop": st.session_state.get("crop"),
-                    "transmission": st.session_state.get("transmission"),
-                    "lighting_type": st.session_state.get("lighting_type"),
-                    "lighting_intensity": st.session_state.get("lighting_intensity"),
-                    "plant_density": st.session_state.get("plant_density"),
-                    "plant_date": str(st.session_state.get("plant_date")),
-                    "long_days": st.session_state.get("long_days"),
-                    "long_day_dark_screen_rad": st.session_state.get("long_day_dark_screen_rad"),
-                    "long_day_dark_screen_percentage": st.session_state.get("long_day_dark_screen_percentage"),
-                    "long_day_energy_screen_rad": st.session_state.get("long_day_energy_screen_rad"),
-                    "long_day_energy_screen_percentage": st.session_state.get("long_day_energy_screen_percentage"),
-                    "short_days": st.session_state.get("short_days"),
-                    "short_day_dark_screen_rad": st.session_state.get("short_day_dark_screen_rad"),
-                    "short_day_dark_screen_percentage": st.session_state.get("short_day_dark_screen_percentage"),
-                    "short_day_energy_screen_temp_dif": st.session_state.get("short_day_energy_screen_temp_dif"),
-                    "short_day_energy_screen_rad": st.session_state.get("short_day_energy_screen_rad"),
-                    "short_day_energy_screen_percentage": st.session_state.get("short_day_energy_screen_percentage"),
-                    "target_weight": st.session_state.get("target_weight"),
-                    "taxes": st.session_state.get("taxes"),
-                    "expected_price": st.session_state.get("expected_price"),
-                    "bonus": st.session_state.get("bonus"),
-                    "penalty": st.session_state.get("penalty"),
-                    "sim_date": str(st.session_state.get("sim_date")),
-                    "sim_time": str(st.session_state.get("sim_time")),
-                }
-                filename = SAVE_DIR / f"{strategy_name.strip()}.xlsx"
-                pd.DataFrame([user_settings]).to_excel(filename, index=False)
-
-                try:
-                    with open(filename, "rb") as f:
-                        commit_to_github(filename.name, f.read(), commit_msg=f"Save strategy {filename.name}")
-                except Exception as e:
-                    st.error(f"❌ Commit to GitHub failed: {e}")
             
 # --- Load User Settings ---
 def load_user_settings():
@@ -503,9 +438,6 @@ with left_col:
         st.stop()
 
     step = st.session_state.step
-    with st.sidebar:
-        st.markdown("### 🔁 Load a Saved Strategy")
-        load_user_settings()
     if step == 0:
         if st.session_state.get("use_excel", False):
             st.subheader("📅 Step 1: Select Planning Info from QMS")
@@ -878,8 +810,6 @@ with left_col:
                 st.metric("Light Intensity", f"{umol} µmol/m²/s")
             with col_b:
                 st.metric("Relative Intensity", f"{percent:.1f}%")
-
-        save_user_settings_sidebar()
 
 st.markdown("""
     <style>
