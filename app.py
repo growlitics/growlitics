@@ -7,7 +7,9 @@ import tempfile
 import subprocess
 import requests
 import base64
+import json
 
+SETTINGS_FILE = "user_settings.json"
 SAVE_DIR = pathlib.Path("saved_strategies")
 SAVE_DIR.mkdir(exist_ok=True)
 
@@ -148,18 +150,58 @@ def load_user_settings():
 
 def show_settings_page():
     st.header("⚙️ Optimization Settings & Limitations")
-    st.info("Set limits or defaults for optimization steps here (e.g. minimum and maximum 'Lange Dagen').")
+    st.info("Configure default ranges and constraints for optimization. These are applied in your wizard and can be saved/loaded from GitHub.")
 
-    # Example: limits for 'Lange Dagen'
-    min_ld = st.number_input("Min Lange Dagen", min_value=1, max_value=16, value=st.session_state.get("min_ld", 5), key="min_ld")
-    max_ld = st.number_input("Max Lange Dagen", min_value=min_ld, max_value=16, value=st.session_state.get("max_ld", 9), key="max_ld")
-    st.session_state["min_ld"] = min_ld
-    st.session_state["max_ld"] = max_ld
+    # --- Example: Lange Dagen (Long Days) Range ---
+    long_days_range = st.slider(
+        "Allowed range for 'Lange Dagen' (Long Days)", 
+        min_value=1, max_value=16, value=st.session_state.get("long_days_range", (5, 9)),
+        step=1, key="long_days_range"
+    )
+    st.session_state["long_days_range"] = long_days_range
 
-    # --- Add more settings as needed here ---
+    # Add more settings as you want here:
+    # short_days_range = st.slider("Allowed range for Short Days", 1, 120, st.session_state.get("short_days_range", (40, 60)), key="short_days_range")
+    # st.session_state["short_days_range"] = short_days_range
 
-    if st.button("💾 Save Settings"):
-        st.success("Settings saved to session (will be applied in wizard).")
+    st.markdown("---")
+
+    # --- SAVE / LOAD to GitHub Buttons ---
+    col_save, col_load = st.columns(2)
+    with col_save:
+        if st.button("💾 Save Settings to GitHub"):
+            # Save current session_state settings as JSON and push to GitHub
+            to_save = {
+                "long_days_range": st.session_state["long_days_range"],
+                # "short_days_range": st.session_state.get("short_days_range"),
+                # Add more settings here!
+            }
+            content = json.dumps(to_save, indent=2).encode("utf-8")
+            try:
+                commit_to_github(SETTINGS_FILE, content, commit_msg="Save user settings")
+                st.success("✅ Settings saved to GitHub!")
+            except Exception as e:
+                st.error(f"❌ Failed to save: {e}")
+    with col_load:
+        if st.button("🔁 Load Settings from GitHub"):
+            # Fetch settings file from GitHub and update session_state
+            try:
+                url = f"https://raw.githubusercontent.com/growlitics/growlitics/main/saved_strategies/{SETTINGS_FILE}"
+                resp = requests.get(url)
+                resp.raise_for_status()
+                loaded = json.loads(resp.content.decode())
+                for k, v in loaded.items():
+                    st.session_state[k] = tuple(v) if isinstance(v, list) else v
+                st.success("✅ Loaded settings from GitHub!")
+            except Exception as e:
+                st.error(f"❌ Failed to load: {e}")
+
+    # --- Display current values for debugging ---
+    st.markdown("#### Current Settings")
+    st.json({
+        "long_days_range": st.session_state.get("long_days_range"),
+        # "short_days_range": st.session_state.get("short_days_range"),
+    })
 
 # === UPLOAD PAGE ===
 def show_upload_page():
