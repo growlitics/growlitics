@@ -16,6 +16,29 @@ SAVE_DIR.mkdir(exist_ok=True)
 
 st.set_page_config(page_title="Growlitics", layout="wide")
 
+def commit_to_github(filename: str, content: bytes, commit_msg="Add strategy file"):
+    GH_TOKEN = st.secrets["GH_TOKEN"]
+    REPO = "growlitics/growlitics"
+    BRANCH = "main"
+    PATH = f"saved_strategies/{filename}"
+    headers = {
+        "Authorization": f"token {GH_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    get_url = f"https://api.github.com/repos/{REPO}/contents/{PATH}"
+    resp = requests.get(get_url, headers=headers, params={"ref": BRANCH})
+    sha = resp.json().get("sha") if resp.status_code == 200 else None
+    put_data = {
+        "message": commit_msg,
+        "branch": BRANCH,
+        "content": base64.b64encode(content).decode("utf-8"),
+    }
+    if sha:
+        put_data["sha"] = sha
+    put_resp = requests.put(get_url, headers=headers, json=put_data)
+    if not put_resp.ok:
+        raise Exception(put_resp.text)
+
 def save_named_settings_to_github(settings, preset_name):
     # Only allow safe filenames
     safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', preset_name.strip())
