@@ -286,19 +286,63 @@ def show_settings_page():
 
 # === UPLOAD PAGE ===
 def show_upload_page():
-    st.header("⬆️ Upload Input Data")
-    uploaded_file = st.file_uploader("Select an input file (xlsx/csv)", type=["xlsx", "csv"], key="uploader")
-    if uploaded_file is not None:
-        file_bytes = uploaded_file.read()
-        filename = uploaded_file.name
+    # --- 1. Planning Data Upload ---
+    st.header("📋 Uploading Planning Data")
+    st.write("Upload your planning/teeltplanning file (xlsx/csv). It will be saved under your username (password)_planning_data.xlsx/csv.")
 
-        st.write(f"**Selected:** `{filename}`")
-        if st.button("Upload & Save to GitHub"):
+    # Use password from session, or prompt for it if needed
+    user = st.session_state.get("password") or st.session_state.get("crop") or "user"
+    planning_file = st.file_uploader("Upload planning file", type=["xlsx", "csv"], key="planning_upload")
+    if planning_file is not None:
+        ext = os.path.splitext(planning_file.name)[-1]
+        filename = f"{user}_planning_data{ext}"
+        file_bytes = planning_file.read()
+        st.write(f"**Selected:** `{planning_file.name}`")
+        if st.button("Upload Planning Data"):
             try:
-                commit_to_github(filename, file_bytes, commit_msg=f"User uploaded {filename}")
+                commit_to_github(filename, file_bytes, commit_msg=f"Planning data upload by {user}")
                 st.success(f"✅ `{filename}` uploaded and committed to GitHub!")
             except Exception as e:
                 st.error(f"❌ Upload failed: {e}")
+
+    st.markdown("---")
+
+    # --- 2. Train Climate Profiler (43x Uploads) ---
+    st.header("🌡️ Train Climate Profiler")
+    st.write("Upload training data for 43 function periods, for each of: Radiation, Temperature, CO2, and RV (humidity).")
+
+    periods = list(range(1, 44))  # 1 to 43 inclusive
+    variables = [
+        ("A", "Radiation [A]"),
+        ("B", "Temperature [B]"),
+        ("C", "CO2 [C]"),
+        ("D", "RV [D]"),
+    ]
+
+    # Optionally, allow user to upload for only some periods at a time for performance
+    with st.expander("Show/Hide All Uploads (43 periods x 4 variables)"):
+        for period in periods:
+            st.subheader(f"Period {period}")
+            cols = st.columns(4)
+            for idx, (suffix, label) in enumerate(variables):
+                with cols[idx]:
+                    up_key = f"profiler_{suffix}_{period}"
+                    up_file = st.file_uploader(
+                        f"{label} - Period {period}", 
+                        type=["csv", "xlsx"], 
+                        key=up_key
+                    )
+                    if up_file is not None:
+                        ext = os.path.splitext(up_file.name)[-1]
+                        filename = f"{user}_climate_profiler_{suffix}_period_{period}{ext}"
+                        file_bytes = up_file.read()
+                        if st.button(f"Upload {label} {period}", key=f"btn_{suffix}_{period}"):
+                            try:
+                                commit_to_github(filename, file_bytes, commit_msg=f"Climate profiler {label} upload (period {period}) by {user}")
+                                st.success(f"✅ `{filename}` uploaded for {label} period {period}!")
+                            except Exception as e:
+                                st.error(f"❌ Upload failed: {e}")
+
 
 # === MAIN MENU SELECTOR (STOPS THE REST IF NOT 'MAIN') ===
 if st.session_state.get("sidebar_menu", "Main") == "Settings":
