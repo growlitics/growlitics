@@ -1,0 +1,14 @@
+{
+  "long_days_range": [
+    5,
+    9
+  ],
+  "short_days_range": [
+    40,
+    60
+  ],
+  "plant_density_range": [
+    40,
+    60
+  ]
+}
