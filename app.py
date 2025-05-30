@@ -288,7 +288,7 @@ def show_settings_page():
 def show_upload_page():
     # --- 1. Planning Data Upload ---
     st.header("📋 Uploading Planning Data")
-    st.write("Upload your planning/teeltplanning file (xlsx/csv). It will be saved under your username (password)_planning_data.xlsx/csv.")
+    st.write("Upload your planning/teeltplanning file (xlsx/csv). It will be saved as USER_planning_data.xlsx/csv, where USER is your password or chosen ID.")
 
     # Use password from session, or prompt for it if needed
     user = st.session_state.get("password") or st.session_state.get("crop") or "user"
@@ -307,43 +307,32 @@ def show_upload_page():
 
     st.markdown("---")
 
-    # --- 2. Train Climate Profiler (43x Uploads) ---
+    # --- 2. Train Climate Profiler (just 4 uploads) ---
     st.header("🌡️ Train Climate Profiler")
-    st.write("Upload training data for 43 function periods, for each of: Radiation, Temperature, CO2, and RV (humidity).")
+    st.write("Upload training data for the climate profiler. Provide one file each for Radiation, Temperature, CO₂, and RV (humidity).")
 
-    periods = list(range(1, 44))  # 1 to 43 inclusive
-    variables = [
-        ("A", "Radiation [A]"),
-        ("B", "Temperature [B]"),
-        ("C", "CO2 [C]"),
-        ("D", "RV [D]"),
+    # Define uploaders and buttons for 4 variables
+    profiler_vars = [
+        ("A", "Radiation"),
+        ("B", "Temperature"),
+        ("C", "CO2"),
+        ("D", "RV")
     ]
-
-    # Optionally, allow user to upload for only some periods at a time for performance
-    with st.expander("Show/Hide All Uploads (43 periods x 4 variables)"):
-        for period in periods:
-            st.subheader(f"Period {period}")
-            cols = st.columns(4)
-            for idx, (suffix, label) in enumerate(variables):
-                with cols[idx]:
-                    up_key = f"profiler_{suffix}_{period}"
-                    up_file = st.file_uploader(
-                        f"{label} - Period {period}", 
-                        type=["csv", "xlsx"], 
-                        key=up_key
-                    )
-                    if up_file is not None:
-                        ext = os.path.splitext(up_file.name)[-1]
-                        filename = f"{user}_climate_profiler_{suffix}_period_{period}{ext}"
-                        file_bytes = up_file.read()
-                        if st.button(f"Upload {label} {period}", key=f"btn_{suffix}_{period}"):
-                            try:
-                                commit_to_github(filename, file_bytes, commit_msg=f"Climate profiler {label} upload (period {period}) by {user}")
-                                st.success(f"✅ `{filename}` uploaded for {label} period {period}!")
-                            except Exception as e:
-                                st.error(f"❌ Upload failed: {e}")
-
-
+    cols = st.columns(4)
+    for idx, (suffix, label) in enumerate(profiler_vars):
+        with cols[idx]:
+            file = st.file_uploader(f"{label} Data", type=["csv", "xlsx"], key=f"profiler_{suffix}")
+            if file is not None:
+                ext = os.path.splitext(file.name)[-1]
+                filename = f"{user}_climate_profiler_{suffix}{ext}"
+                file_bytes = file.read()
+                if st.button(f"Upload {label}", key=f"upload_{suffix}"):
+                    try:
+                        commit_to_github(filename, file_bytes, commit_msg=f"Climate profiler {label} upload by {user}")
+                        st.success(f"✅ `{filename}` uploaded for {label}!")
+                    except Exception as e:
+                        st.error(f"❌ Upload failed: {e}")
+                        
 # === MAIN MENU SELECTOR (STOPS THE REST IF NOT 'MAIN') ===
 if st.session_state.get("sidebar_menu", "Main") == "Settings":
     show_settings_page()
